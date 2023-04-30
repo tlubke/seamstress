@@ -26,3 +26,9 @@ invoke `seamstress` from the terminal.
 by default seamstress looks for and runs a file called `script.lua`
 in either the current directory or in `~/seamstress/`.
 this behavior can be overridden, see `seamstress -h` for details.
+
+## acknowledgments
+
+seamstress is inspired by [monome norns's](https://github.com/monome/norns) matron,
+which was written by @catfact.
+norns was initiated by @tehn.
