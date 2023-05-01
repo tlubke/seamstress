@@ -15,6 +15,7 @@ brew install liblo
 to build, invoke
 
 ```
+./waf configure
 ./waf
 sudo ./waf install
 ```
