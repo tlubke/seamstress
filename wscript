@@ -52,7 +52,7 @@ def configure(ctx):
 
     ctx.define('VERSION_MAJOR', 0)
     ctx.define('VERSION_MINOR', 1)
-    ctx.define('VERSION_PATCH', 0)
+    ctx.define('VERSION_PATCH', 1)
     return
 
 def build(ctx):

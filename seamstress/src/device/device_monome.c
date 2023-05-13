@@ -197,9 +197,6 @@ int dev_monome_grid_cols(struct dev_monome *md) {
 void *dev_monome_start(void *md) {
   struct dev_monome *monome_dev = (struct dev_monome *)md;
   monome_event_loop(monome_dev->m);
-  union event_data *ev = event_data_new(EVENT_MONOME_REMOVE);
-  ev->monome_remove.id = monome_dev->dev.id;
-  event_post(ev);
   return NULL;
 }
 
