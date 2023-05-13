@@ -6,10 +6,12 @@
 #include "events.h"
 #include "osc.h"
 #include "spindle.h"
+#include "device/device_monitor.h"
 
 void print_version(void);
 
 void cleanup(void) {
+  dev_monitor_deinit();
   osc_deinit();
   s_deinit();
   fprintf(stderr, "seamstress shutdown complete\n");
@@ -20,12 +22,31 @@ void cleanup(void) {
 int main(int argc, char **argv) {
   args_parse(argc, argv);
   print_version();
+
+  fprintf(stderr, "starting event handler\n");
   events_init();
+
+  fprintf(stderr, "init spindle\n");
   s_init();
+
+  fprintf(stderr, "starting device monitor\n");
+  dev_monitor_init();
+
   atexit(cleanup);
+
+  fprintf(stderr, "starting osc\n");
   osc_init();
+
+  fprintf(stderr, "starting spindle\n");
   s_startup();
+
+  fprintf(stderr, "scanning for devices\n");
+  dev_monitor_scan();
+
+  fprintf(stderr, "handling events\n");
   event_handle_pending();
+
+  fprintf(stderr, "start main loop\n");
   event_loop();
 }
 

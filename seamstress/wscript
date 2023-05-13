@@ -1,31 +1,40 @@
-# vim: ft=python
+# dear emacs, this is -*- python -*-
 
 top = '..'
 
 def build(bld):
     seamstress_src = [
-            'src/spindle.c',
-            'src/lua_interp.c',
-            'src/main.c',
-            'src/osc.c',
-            'src/args.c',
-            'src/events.c',
-            ]
+        'src/spindle.c',
+        'src/lua_interp.c',
+        'src/main.c',
+        'src/osc.c',
+        'src/args.c',
+        'src/events.c',
+        'src/device/device_list.c',
+        'src/device/device.c',
+        'src/device/device_monome.c',
+        'src/device/device_common.c'
+        ]
+    if bld.env.DEST_OS == 'linux':
+        seamstress_src.append('src/device/device_monitor_linux.c')
+    else:
+        seamstress_src.append('src/device/device_monitor_macos.c')
 
-    seamstress_includes = [
-            '/usr/local/include',
-            '/usr/local/lib',
-            '/opt/homebrew/include',
-            '/opt/homebrew/lib'
-            'src'
-            ]
-
-    bld.program(
+    if bld.env.DEST_OS == 'linux':
+        bld.program(
             features = 'c cprogram',
             source = seamstress_src,
             target = 'seamstress',
-            includes = seamstress_includes,
             lib = ['dl'],
-            cflags = ['-Wall', '-std=c11'], 
-            ldflags = ['-llua', '-L/opt/homebrew/lib', '-llo']
-            )
+            use = ['LUA', 'LO', 'MONOME'],
+            cflags = ['-Wall', '-std=c11'])
+    else:
+        bld.program(
+            features = 'c cprogram',
+            source = seamstress_src,
+            target = 'seamstress',
+            lib = ['dl'],
+            use = ['LUA', 'LO', 'MONOME'],
+            framework = ['IOKit', 'CoreFoundation'],
+            cflags = ['-Wall', '-std=c11'])
+## EOF

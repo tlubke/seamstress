@@ -136,18 +136,36 @@ void event_handle_pending(void) {
 
 static void handle_event(union event_data *ev) {
   switch (ev->type) {
-    case EVENT_EXEC_CODE_LINE:
-      s_handle_exec_code_line(ev->exec_code_line.line);
-      break;
-    case EVENT_OSC:
-      s_handle_osc_event(ev->osc_event.from_host, ev->osc_event.from_port, ev->osc_event.path, ev->osc_event.msg);
-      break;
-    case EVENT_QUIT:
-      quit = true;
-      break;
-    case EVENT_RESET_LVM:
-      s_reset_lvm();
-      break;
+  case EVENT_EXEC_CODE_LINE:
+    s_handle_exec_code_line(ev->exec_code_line.line);
+    break;
+  case EVENT_OSC:
+    s_handle_osc_event(ev->osc_event.from_host, ev->osc_event.from_port, ev->osc_event.path, ev->osc_event.msg);
+    break;
+  case EVENT_QUIT:
+    quit = true;
+    break;
+  case EVENT_MONOME_ADD:
+    s_handle_monome_add(ev->monome_add.dev);
+    break;
+  case EVENT_MONOME_REMOVE:
+    s_handle_monome_remove(ev->monome_remove.id);
+    break;
+  case EVENT_GRID_KEY:
+    s_handle_grid_key(ev->grid_key.id, ev->grid_key.x, ev->grid_key.y, ev->grid_key.state);
+    break;
+  case EVENT_GRID_TILT:
+    s_handle_grid_tilt(ev->grid_tilt.id, ev->grid_tilt.sensor, ev->grid_tilt.x, ev->grid_tilt.y, ev->grid_tilt.z);
+    break;
+  case EVENT_ARC_ENCODER:
+    s_handle_arc_encoder(ev->arc_encoder_delta.id, ev->arc_encoder_delta.number, ev->arc_encoder_delta.delta);
+    break;
+  case EVENT_ARC_KEY:
+    s_handle_arc_key(ev->arc_encoder_key.id, ev->arc_encoder_key.number, ev->arc_encoder_key.state);
+    break;
+  case EVENT_RESET_LVM:
+    s_reset_lvm();
+    break;
   }
   event_data_free(ev);
 }

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "args.h"
+#include "device/device_monome.h"
 #include "event_types.h"
 #include "lua_interp.h"
 #include "osc.h"
@@ -33,6 +34,18 @@ static inline void _push_lua_func(const char *field, const char *func){
   lua_remove(lvm, -2);
 }
 
+static int _grid_set_led(lua_State *l);
+static int _arc_set_led(lua_State *l);
+static int _grid_all_led(lua_State *l);
+static int _arc_all_led(lua_State *l);
+static int _grid_set_rotation(lua_State *l);
+static int _grid_tilt_enable(lua_State *l);
+static int _grid_tilt_disable(lua_State *l);
+static int _monome_refresh(lua_State *l);
+static int _monome_intensity(lua_State *l);
+static int _grid_rows(lua_State *l);
+static int _grid_cols(lua_State *l);
+
 static inline void lua_register_seamstress(const char *name, int (*f)(lua_State *l)) {
   lua_pushcfunction(lvm, f);
   lua_setfield(lvm, -2, name);
@@ -46,6 +59,18 @@ void s_init(void) {
   lua_newtable(lvm);
 
   lua_register_seamstress("osc_send", &_osc_send);
+
+  lua_register_seamstress("grid_set_led", &_grid_set_led);
+  lua_register_seamstress("grid_all_led", &_grid_all_led);
+  lua_register_seamstress("grid_rows", &_grid_rows);
+  lua_register_seamstress("grid_cols", &_grid_cols);
+  lua_register_seamstress("grid_set_rotation", &_grid_set_rotation);
+  lua_register_seamstress("grid_tilt_enable", &_grid_tilt_enable);
+  lua_register_seamstress("grid_tilt_disable", &_grid_tilt_disable);
+  lua_register_seamstress("arc_set_led", &_arc_set_led);
+  lua_register_seamstress("arc_all_led", &_arc_all_led);
+  lua_register_seamstress("monome_refresh", &_monome_refresh);
+  lua_register_seamstress("monome_intensity", &_monome_intensity);
 
   lua_register_seamstress("reset_lvm", &_reset_lvm);
 
@@ -91,6 +116,109 @@ int _reset_lvm(lua_State *l) {
   lua_settop(l, 0);
   event_post(event_data_new(EVENT_RESET_LVM));
   return 0;
+}
+
+int _grid_set_led(lua_State *l) {
+  lua_check_num_args(4);
+  luaL_checktype(l, 1, LUA_TLIGHTUSERDATA);
+  struct dev_monome *md = lua_touserdata(l, 1);
+  int x = (int)luaL_checkinteger(l, 2) - 1;
+  int y = (int)luaL_checkinteger(l, 3) - 1;
+  int z = (int)luaL_checkinteger(l, 4);
+  dev_monome_grid_set_led(md, x, y, z);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _arc_set_led(lua_State *l) {
+  lua_check_num_args(4);
+  luaL_checktype(l, 1, LUA_TLIGHTUSERDATA);
+  struct dev_monome *md = lua_touserdata(l, 1);
+  int n = (int)luaL_checkinteger(l, 2) - 1;
+  int x = (int)luaL_checkinteger(l, 3) - 1;
+  int val = (int)luaL_checkinteger(l, 4);
+  dev_monome_arc_set_led(md, n, x, val);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _grid_all_led(lua_State *l) {
+  lua_check_num_args(2);
+  luaL_checktype(l, 1, LUA_TLIGHTUSERDATA);
+  struct dev_monome *md = lua_touserdata(l, 1);
+  int z = (int)luaL_checkinteger(l, 2);
+  dev_monome_all_led(md, z);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _arc_all_led(lua_State *l) {
+  return _grid_all_led(l);
+}
+
+int _grid_set_rotation(lua_State *l) {
+  lua_check_num_args(2);
+  luaL_checktype(l, 1, LUA_TLIGHTUSERDATA);
+  struct dev_monome *md = lua_touserdata(l, 1);
+  int z = (int)luaL_checkinteger(l, 2);
+  dev_monome_set_rotation(md, z);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _grid_tilt_enable(lua_State *l) {
+  lua_check_num_args(2);
+  luaL_checktype(l, 1, LUA_TLIGHTUSERDATA);
+  struct dev_monome *md = lua_touserdata(l, 1);
+  int id = (int)luaL_checkinteger(l, 2) - 1;
+  dev_monome_tilt_enable(md, id);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _grid_tilt_disable(lua_State *l) {
+  lua_check_num_args(2);
+  luaL_checktype(l, 1, LUA_TLIGHTUSERDATA);
+  struct dev_monome *md = lua_touserdata(l, 1);
+  int id = (int)luaL_checkinteger(l, 2) - 1;
+  dev_monome_tilt_disable(md, id);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _monome_refresh(lua_State *l) {
+  lua_check_num_args(1);
+  luaL_checktype(l, 1, LUA_TLIGHTUSERDATA);
+  struct dev_monome *md = lua_touserdata(l, 1);
+  dev_monome_refresh(md);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _monome_intensity(lua_State *l) {
+  lua_check_num_args(2);
+  luaL_checktype(l, 1, LUA_TLIGHTUSERDATA);
+  struct dev_monome *md = lua_touserdata(l, 1);
+  int i = (int)luaL_checkinteger(l, 2);
+  dev_monome_intensity(md, i);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _grid_rows(lua_State *l) {
+  lua_check_num_args(1);
+  luaL_checktype(l, 1, LUA_TLIGHTUSERDATA);
+  struct dev_monome *md = lua_touserdata(l, 1);
+  lua_pushinteger(l, dev_monome_grid_rows(md));
+  return 1;
+}
+
+int _grid_cols(lua_State *l) {
+  lua_check_num_args(1);
+  luaL_checktype(l, 1, LUA_TLIGHTUSERDATA);
+  struct dev_monome *md = lua_touserdata(l, 1);
+  lua_pushinteger(l, dev_monome_grid_cols(md));
+  return 1;
 }
 
 int _osc_send(lua_State *l) {
@@ -243,4 +371,58 @@ void s_handle_osc_event(char *from_host, char *from_port, char *path, lo_message
 
 void s_handle_exec_code_line(char *line) {
   handle_line(lvm, line);
+}
+
+void s_handle_monome_add(void *dev) {
+  struct dev_monome *md = (struct dev_monome *)dev;
+  int id = md->dev.id;
+  const char *serial = md->dev.serial;
+  const char *name = md->dev.name;
+  _push_lua_func("monome", "add");
+  lua_pushinteger(lvm, id + 1);
+  lua_pushstring(lvm, serial);
+  lua_pushstring(lvm, name);
+  lua_pushlightuserdata(lvm, dev);
+  report(lvm, docall(lvm, 4, 0));
+}
+
+void s_handle_monome_remove(int id) {
+  _push_lua_func("monome", "remove");
+  lua_pushinteger(lvm, id + 1);
+  report(lvm, docall(lvm, 1, 0));
+}
+
+void s_handle_grid_key(int id, int x, int y, int state) {
+  _push_lua_func("grid", "key");
+  lua_pushinteger(lvm, id + 1);
+  lua_pushinteger(lvm, x + 1);
+  lua_pushinteger(lvm, y + 1);
+  lua_pushinteger(lvm, state > 0);
+  report(lvm, docall(lvm, 4, 0));
+}
+
+void s_handle_grid_tilt(int id, int sensor, int x, int y, int z) {
+  _push_lua_func("grid", "tilt");
+  lua_pushinteger(lvm, id + 1);
+  lua_pushinteger(lvm, sensor + 1);
+  lua_pushinteger(lvm, x + 1);
+  lua_pushinteger(lvm, y + 1);
+  lua_pushinteger(lvm, z + 1);
+  report(lvm, docall(lvm, 5, 0));
+}
+
+void s_handle_arc_encoder(int id, int number, int delta) {
+  _push_lua_func("arc", "delta");
+  lua_pushinteger(lvm, id + 1);
+  lua_pushinteger(lvm, number + 1);
+  lua_pushinteger(lvm, delta);
+  report(lvm, docall(lvm, 3, 0));
+}
+
+void s_handle_arc_key(int id, int number, int state) {
+  _push_lua_func("arc", "key");
+  lua_pushinteger(lvm, id + 1);
+  lua_pushinteger(lvm, number + 1);
+  lua_pushinteger(lvm, state > 0);
+  report(lvm, docall(lvm, 3, 0));
 }

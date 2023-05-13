@@ -1,117 +1,156 @@
+local vport = require 'vport'
+
 local Grid = {}
 Grid.__index = Grid
 
-Grid.find = {}
+Grid.devices = {}
 Grid.ports = {}
 
-function Grid.new(id, port)
-  if Grid.find[id] or Grid.ports[port] then return end
+for i = 1, 4 do
+	Grid.ports[i] = {
+    name = "none",
+    device = nil,
+    delta = nil,
+    key = nil,
+    led = vport.wrap('led'),
+    all = vport.wrap('all'),
+    refresh = vport.wrap('refresh'),
+    rotation = vport.wrap('rotation'),
+    intensity = vport.wrap('intensity'),
+    tilt_enable = vport.wrap('tilt_enable'),
+    cols = 0,
+    rows = 0
+  }
+end
 
+function Grid.new(id, serial, name, dev)
   local g = setmetatable({}, Grid)
 
   g.id = id
-  g.port = port
+  g.serial = serial
+  g.name = name .. " " .. serial
+  g.dev = dev
   g.key = nil
   g.tilt = nil
-  g.disconnect = nil
-  g.rows = 8
-  g.cols = 16
-
-  g.state = {
-    dirty = {false, false, false, false},
-    {}, {}, {}, {}
-  }
+  g.remove = nil
+  g.rows = _seamstress.grid_rows(dev)
+  g.cols = _seamstress.grid_cols(dev)
 
   for i = 1, 4 do
-    for j = 1, 64 do
-      g.state[i][j] = 0
+    if Grid.ports[i].name == g.name then
+      return g
+    end
+  end
+  for i = 1, 4 do
+    if Grid.ports[i].name == "none" then
+      Grid.ports[i].name = g.name
+      break
     end
   end
 
-  Grid.find[id] = g
-  Grid.ports[port] = g
-  Grid.add(g)
+  return g
 end
+
 
 function Grid.add(dev)
-  print("grid added:", dev.id, dev.port)
-  if dev.connect then
-    dev:connect()
-  end
+  print("grid added:", dev.id, dev.name, dev.serial)
 end
 
-function Grid.remove(id)
-  local grid = Grid.find[id]
-  if not grid then return end
-  local port = grid.port
-  if grid.disconnect then
-    grid.disconnect()
-  end
-  Grid.find[id] = nil
-  Grid.ports[port] = nil
+function Grid.connect(n)
+	n = n or 1
+  return Grid.ports[n]
 end
+
+function Grid.remove(dev) end
 
 function Grid:rotation(val)
-  _seamstress.osc_end({"localhost", self.port}, "/sys/rotation", {val})
-end
-
-local function x_y_to_quad(x, y)
-  local quad = (((y - 1) // 8) << 1) + ((x - 1) // 8)
-  x = (x - 1) % 8 + 1
-  y = (x - 1) % 8
-  local pos = 8 * y + x
-  return quad, pos
+  _seamstress.grid_set_rotation(self.dev, val)
 end
 
 function Grid:led(x, y, val)
-  local quad, pos = x_y_to_quad(x, y)
-  self.state[quad][pos] = val
-  self.state.dirty[quad] = true
+  _seamstress.grid_set_led(self.dev, x, y, val)
 end
 
 function Grid:all(val)
-  local quads = x_y_to_quad(self.cols, self.rows)
-  for i = 1, quads do
-    for j = 1, 64 do
-      self.state[i][j] = val
-    end
-    self.state.dirty[i] = true
-  end
+  _seamstress.grid_all_led(self.dev, val)
 end
 
 function Grid:refresh()
+  _seamstress.monome_refresh(self.dev)
+end
+
+function Grid:intensity(i)
+  _seamstress.monome_intensity(self.dev, i)
+end
+
+function Grid.update_devices()
+	for _, device in pairs(Grid.devices) do
+    device.port = nil
+  end
+
   for i = 1, 4 do
-    if self.state.dirty[i] then
-      _seamstress.osc_send({"localhost", self.port}, "/grid/level/map",
-        {i - 1, table.unpack(self.state[i])})
-      self.state.dirty[i] = false
+    Grid.ports[i].device = nil
+    for _, device in pairs(Grid.devices) do
+      if device.name == Grid.ports[i].name then
+        Grid.ports[i].device = device
+        device.port = i
+      end
     end
   end
 end
 
-function Grid:intensity(i)
-  _seamstress.osc_send({"localhost", self.port}, "/sys/intensity", {i})
-end
-
-function Grid.connect(dev) end
-
 _seamstress.grid = {
-  key = function (port, x, y, z)
-    local g = Grid.ports[port]
-    if g ~= nil then
-      if g.key ~= nil then
-        g.key(x+1, y+1, z)
+  add = function (id, serial, name, dev)
+    local g = Grid.new(id, serial, name, dev)
+    Grid.devices[id] = g
+    Grid.update_devices()
+    if Grid.add ~= nill then Grid.add(g) end
+  end,
+  
+  remove = function (id)
+    local g = Grid.devices[id]
+    if g then
+      if Grid.ports[g.port].remove then
+        Grid.ports[g.port].remove()
+      end
+      if Grid.remove then
+        Grid.remove(Grid.devices[id])
+      end
+    end
+    Grid.devices[id] = nil
+    Grid.update_devices()
+  end,
+
+  key = function (id, x, y, z)
+    local grid = Grid.devices[id]
+    if grid ~= nil then
+      if grid.key then
+        grid.key(x, y, z)
+      end
+
+      if grid.port then
+        if Grid.ports[grid.port].key then
+          Grid.ports[grid.port].key(x, y, z)
+        end
       end
     else
-      error('no entry for grid at port ' .. port)
+      error('no entry for grid ' .. id)
     end
   end,
-  tilt = function (port, sensor, x, y, z)
-    local g = Grid.ports[port]
-    if g ~= nil then
-      g.tilt(sensor+1, x, y, z)
+
+  tilt = function (id, sensor, x, y, z)
+    local grid = Grid.devices[id]
+    if grid ~= nil then
+      if grid.tilt then
+        grid.tilt(sensor, x, y, z)
+      end
+      if grid.port then
+        if Grid.ports[grid.port].tilt then
+          Grid.ports[grid.port].tilt(sensor, x, y, z)
+        end
+      end
     else
-      error('no entry for grid at port ' .. port)
+      error('no entry for grid ' .. id)
     end
   end
 }
