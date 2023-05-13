@@ -6,10 +6,10 @@ currently very much alpha software.
 
 ## installation
 
-requires `liblo`. on macOS do
+requires `liblo`, `lua` and `libmonome`. on macOS do
 
 ```
-brew install liblo
+brew install lua liblo libmonome
 ```
 
 to build, invoke
@@ -23,7 +23,7 @@ sudo ./waf install
 ## usage
 
 invoke `seamstress` from the terminal.
-`Ctrl+C` should exit, but at the time of this writing may lag.
+`Ctrl+C` exits.
 by default seamstress looks for and runs a file called `script.lua`
 in either the current directory or in `~/seamstress/`.
 this behavior can be overridden, see `seamstress -h` for details.
@@ -32,4 +32,6 @@ this behavior can be overridden, see `seamstress -h` for details.
 
 seamstress is inspired by [monome norns's](https://github.com/monome/norns) matron,
 which was written by @catfact.
+macOS device handling borrows from [serialosc](https://github.com/monome/serialosc),
+written by @wrl.
 norns was initiated by @tehn.
