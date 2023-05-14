@@ -23,7 +23,7 @@ sudo ./waf install
 ## usage
 
 invoke `seamstress` from the terminal.
-`Ctrl+C` exits.
+`Ctrl+C` or 'quit' exits.
 by default seamstress looks for and runs a file called `script.lua`
 in either the current directory or in `~/seamstress/`.
 this behavior can be overridden, see `seamstress -h` for details.
