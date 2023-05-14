@@ -6,6 +6,7 @@
 #include "events.h"
 #include "osc.h"
 #include "spindle.h"
+#include "input.h"
 #include "device/device_monitor.h"
 
 void print_version(void);
@@ -26,7 +27,7 @@ int main(int argc, char **argv) {
   fprintf(stderr, "starting event handler\n");
   events_init();
 
-  fprintf(stderr, "init spindle\n");
+  fprintf(stderr, "starting spindle\n");
   s_init();
 
   fprintf(stderr, "starting device monitor\n");
@@ -37,7 +38,10 @@ int main(int argc, char **argv) {
   fprintf(stderr, "starting osc\n");
   osc_init();
 
-  fprintf(stderr, "starting spindle\n");
+  fprintf(stderr, "starting input\n");
+  input_init();
+
+  fprintf(stderr, "spinning spindle\n");
   s_startup();
 
   fprintf(stderr, "scanning for devices\n");
@@ -46,7 +50,7 @@ int main(int argc, char **argv) {
   fprintf(stderr, "handling events\n");
   event_handle_pending();
 
-  fprintf(stderr, "start main loop\n");
+  fprintf(stderr, "starting main loop\n");
   event_loop();
 }
 

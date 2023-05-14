@@ -10,6 +10,7 @@ def build(bld):
         'src/osc.c',
         'src/args.c',
         'src/events.c',
+        'src/input.c',
         'src/device/device_list.c',
         'src/device/device.c',
         'src/device/device_monome.c',
