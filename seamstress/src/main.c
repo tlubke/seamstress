@@ -5,6 +5,7 @@
 #include "args.h"
 #include "events.h"
 #include "osc.h"
+#include "screen.h"
 #include "spindle.h"
 #include "input.h"
 #include "device/device_monitor.h"
@@ -12,6 +13,7 @@
 void print_version(void);
 
 void cleanup(void) {
+  screen_deinit();
   dev_monitor_deinit();
   osc_deinit();
   s_deinit();
@@ -43,6 +45,9 @@ int main(int argc, char **argv) {
 
   fprintf(stderr, "spinning spindle\n");
   s_startup();
+
+  fprintf(stderr, "starting screen\n");
+  screen_init(args_width(), args_height());
 
   fprintf(stderr, "scanning for devices\n");
   dev_monitor_scan();

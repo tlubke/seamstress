@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "args.h"
@@ -5,6 +6,7 @@
 #include "event_types.h"
 #include "lua_interp.h"
 #include "osc.h"
+#include "screen.h"
 #include "spindle.h"
 #include "events.h"
 
@@ -45,6 +47,14 @@ static int _monome_refresh(lua_State *l);
 static int _monome_intensity(lua_State *l);
 static int _grid_rows(lua_State *l);
 static int _grid_cols(lua_State *l);
+static int _screen_redraw(lua_State *l);
+static int _screen_pixel(lua_State *l);
+static int _screen_line(lua_State *l);
+static int _screen_rect(lua_State *l);
+static int _screen_rect_fill(lua_State *l);
+static int _screen_text(lua_State *l);
+static int _screen_color(lua_State *l);
+static int _screen_clear(lua_State *l);
 
 static inline void lua_register_seamstress(const char *name, int (*f)(lua_State *l)) {
   lua_pushcfunction(lvm, f);
@@ -71,6 +81,14 @@ void s_init(void) {
   lua_register_seamstress("arc_all_led", &_arc_all_led);
   lua_register_seamstress("monome_refresh", &_monome_refresh);
   lua_register_seamstress("monome_intensity", &_monome_intensity);
+  lua_register_seamstress("screen_redraw", &_screen_redraw);
+  lua_register_seamstress("screen_pixel", &_screen_pixel);
+  lua_register_seamstress("screen_line", &_screen_line);
+  lua_register_seamstress("screen_rect", &_screen_rect);
+  lua_register_seamstress("sreen_rect_fill", &_screen_rect_fill);
+  lua_register_seamstress("screen_text", &_screen_text);
+  lua_register_seamstress("screen_color", &_screen_color);
+  lua_register_seamstress("screen_clear", &_screen_clear);
 
   lua_register_seamstress("reset_lvm", &_reset_lvm);
 
@@ -221,6 +239,81 @@ int _grid_cols(lua_State *l) {
   return 1;
 }
 
+int _screen_redraw(lua_State *l) {
+  lua_check_num_args(0);
+  screen_redraw();
+  return 0;
+}
+
+int _screen_clear(lua_State *l) {
+  lua_check_num_args(0);
+  screen_clear();
+  return 0;
+}
+
+int _screen_color(lua_State *l) {
+  lua_check_num_args(4);
+  int r = (int)luaL_checkinteger(l, 1);
+  int g = (int)luaL_checkinteger(l, 2);
+  int b = (int)luaL_checkinteger(l, 3);
+  int a = (int)luaL_checkinteger(l, 4);
+  screen_color(r, g, b, a);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _screen_pixel(lua_State *l) {
+  lua_check_num_args(2);
+  int x = (int)luaL_checkinteger(l, 1);
+  int y = (int)luaL_checkinteger(l, 2);
+  screen_pixel(x, y);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _screen_line(lua_State *l) {
+  lua_check_num_args(4);
+  int ax = (int)luaL_checkinteger(l, 1);
+  int ay = (int)luaL_checkinteger(l, 2);
+  int bx = (int)luaL_checkinteger(l, 3);
+  int by = (int)luaL_checkinteger(l, 4);
+  screen_line(ax, ay, bx, by);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _screen_rect(lua_State *l) {
+  lua_check_num_args(4);
+  int x = (int)luaL_checkinteger(l, 1);
+  int y = (int)luaL_checkinteger(l, 2);
+  int w = (int)luaL_checkinteger(l, 3);
+  int h = (int)luaL_checkinteger(l, 4);
+  screen_rect(x, y, w, h);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _screen_rect_fill(lua_State *l) {
+  lua_check_num_args(4);
+  int x = (int)luaL_checkinteger(l, 1);
+  int y = (int)luaL_checkinteger(l, 2);
+  int w = (int)luaL_checkinteger(l, 3);
+  int h = (int)luaL_checkinteger(l, 4);
+  screen_rect_fill(x, y, w, h);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _screen_text(lua_State *l) {
+  lua_check_num_args(3);
+  int x = (int)luaL_checkinteger(l, 1);
+  int y = (int)luaL_checkinteger(l, 2);
+  const char *text = lua_tostring(l, 3);
+  screen_text(x, y, text);
+  lua_settop(l, 0);
+  return 0;
+}
+
 int _osc_send(lua_State *l) {
   const char *host = NULL;
   const char *port = NULL;
@@ -367,6 +460,12 @@ void s_handle_osc_event(char *from_host, char *from_port, char *path, lo_message
   lua_rawseti(lvm, -2, 2);
 
   report(lvm, docall(lvm, 3, 0));
+}
+
+void s_handle_screen_key(u_int16_t scancode) {
+  _push_lua_func("screen", "key");
+  lua_pushinteger(lvm, scancode);
+  report(lvm, docall(lvm, 1,0));
 }
 
 void s_handle_exec_code_line(char *line) {

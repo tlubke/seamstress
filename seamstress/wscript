@@ -14,7 +14,8 @@ def build(bld):
         'src/device/device_list.c',
         'src/device/device.c',
         'src/device/device_monome.c',
-        'src/device/device_common.c'
+        'src/device/device_common.c',
+        'src/screen.c',
         ]
     if bld.env.DEST_OS == 'linux':
         seamstress_src.append('src/device/device_monitor_linux.c')
@@ -35,7 +36,7 @@ def build(bld):
             source = seamstress_src,
             target = 'seamstress',
             lib = ['dl'],
-            use = ['LUA', 'LO', 'MONOME'],
+            use = ['LUA', 'LO', 'MONOME', 'SDL', 'SDLTTF'],
             framework = ['IOKit', 'CoreFoundation'],
             cflags = ['-Wall', '-std=c11'])
 ## EOF

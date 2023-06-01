@@ -16,3 +16,4 @@ extern void s_handle_grid_key(int id, int x, int y, int state);
 extern void s_handle_grid_tilt(int id, int sensor, int x, int y, int z);
 extern void s_handle_arc_encoder(int id, int number, int delta);
 extern void s_handle_arc_key(int id, int number, int state);
+extern void s_handle_screen_key(uint16_t scancode);

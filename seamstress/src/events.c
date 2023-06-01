@@ -8,6 +8,7 @@
 
 #include "events.h"
 #include "event_types.h"
+#include "screen.h"
 #include "spindle.h"
 
 struct ev_node {
@@ -165,6 +166,12 @@ static void handle_event(union event_data *ev) {
     break;
   case EVENT_RESET_LVM:
     s_reset_lvm();
+    break;
+  case EVENT_KEY:
+    s_handle_screen_key(ev->key.scancode);
+    break;
+  case EVENT_SCREEN_CHECK:
+    screen_check();
     break;
   }
   event_data_free(ev);

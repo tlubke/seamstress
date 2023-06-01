@@ -2,6 +2,7 @@ grid = require 'core/grid'
 arc = require 'core/arc'
 osc = require 'core/osc'
 util = require 'lib/util'
+screen = require 'core/screen'
 
 init = function () end
 

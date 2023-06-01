@@ -5,10 +5,8 @@ out = 'build'
 
 def options(ctx):
     ctx.load('compiler_c')
-    ctx.load('compiler_cxx')
 
 def configure(ctx):
-    ctx.load('compiler_cxx')
     ctx.load('compiler_c')
     ctx.load('clang_compilation_database')
 
@@ -23,6 +21,16 @@ def configure(ctx):
         ctx.env.LIBPATH_MONOME = '/opt/homebrew/lib'
         ctx.env.LDFLAGS_MONOME = '-lmonome'
 
+        ctx.env.INCLUDES_SDL = '/opt/homebrew/include'
+        ctx.env.LIB_SDL = 'SDL2'
+        ctx.env.LIBPATH_SDL = '/opt/homebrew/lib'
+        ctx.env.LDFLAGS_SDL = '-lSDL2' 
+
+        ctx.env.INCLUDES_SDLTTF = '/opt/homebrew/include'
+        ctx.env.LIB_SDLTTF = 'SDL2_ttf'
+        ctx.env.LIBPATH_SDLTTF = '/opt/homebrew/lib'
+        ctx.env.LDFLAGS_SDLTTF = '-lSDL2_ttf'
+
     ctx.check_cc(
         define_name = "HAVE_LUA",
         mandatory = True,
@@ -30,6 +38,24 @@ def configure(ctx):
         lib = "lua",
         uselib_store = "LUA",
         msg = "Checking for lua"
+    )
+    ctx.check_cc(
+        define_name = "HAVE_SDL",
+        mandatory = True,
+        quote = 0,
+        lib = "SDL2",
+        use = "SDL",
+        uselib_store = "SDL",
+        msg = "Checking for sdl"
+    )
+    ctx.check_cc(
+        define_name = "HAVE_SDLTTF",
+        mandatory = True,
+        quote = 0,
+        lib = "SDL2_ttf",
+        use = "SDLTTF",
+        uselib_store = "SDLTTF",
+        msg = "Checking for sdl_ttf"
     )
     ctx.check_cc(
         define_name = "HAVE_LO",
@@ -51,7 +77,7 @@ def configure(ctx):
     )
 
     ctx.define('VERSION_MAJOR', 0)
-    ctx.define('VERSION_MINOR', 2)
+    ctx.define('VERSION_MINOR', 3)
     ctx.define('VERSION_PATCH', 0)
     return
 
@@ -60,5 +86,9 @@ def build(ctx):
     start_dir = ctx.path.find_dir('lua')
     ctx.install_files('${PREFIX}/share/seamstress/lua',
                       start_dir.ant_glob('**/*.lua'),
+                      cwd=start_dir, relative_trick=True)
+    start_dir = ctx.path.find_dir('resources')
+    ctx.install_files('${PREFIX}/share/seamstress/resources',
+                      start_dir.ant_glob('*.ttf'),
                       cwd=start_dir, relative_trick=True)
     return

@@ -13,6 +13,8 @@ typedef enum {
   EVENT_GRID_TILT,
   EVENT_ARC_ENCODER,
   EVENT_ARC_KEY,
+  EVENT_KEY,
+  EVENT_SCREEN_CHECK,
 } event_t;
 
 struct event_common {
@@ -73,6 +75,11 @@ struct event_arc_encoder_key {
     int8_t state;
 };
 
+struct event_key {
+  struct event_common common;
+  uint16_t scancode;
+};
+
 union event_data {
   uint32_t type;
   struct event_exec_code_line exec_code_line;
@@ -83,4 +90,5 @@ union event_data {
   struct event_grid_tilt grid_tilt;
   struct event_arc_encoder_delta arc_encoder_delta;
   struct event_arc_encoder_key arc_encoder_key;
+  struct event_key key;
 };
