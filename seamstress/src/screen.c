@@ -15,13 +15,13 @@
 
 static pthread_t thread;
 
-SDL_Window *window;
-SDL_Renderer *render;
-TTF_Font *font;
+static SDL_Window *window;
+static SDL_Renderer *render;
+static TTF_Font *font;
 
-int WIDTH = 256;
-int HEIGHT = 128;
-int ZOOM = 4;
+static int WIDTH = 256;
+static int HEIGHT = 128;
+static int ZOOM = 4;
 
 void screen_redraw() {
   SDL_RenderPresent(render);
@@ -82,7 +82,7 @@ void screen_text(int x, int y, const char *text) {
   SDL_FreeSurface(text_surf);
 }
 
-void window_rect() {
+static void window_rect() {
   int xsize, ysize, xzoom, yzoom;
   SDL_GetWindowSize(window, &xsize, &ysize);
   for (xzoom = 1; ((1 + xzoom) * WIDTH) <= xsize; xzoom++);
