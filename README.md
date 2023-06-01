@@ -6,10 +6,10 @@ currently very much alpha software.
 
 ## installation
 
-requires `liblo`, `lua` and `libmonome`. on macOS do
+requires `liblo`, `sdl2`, `sdl2_ttf`, `lua` and `libmonome`. on macOS do
 
 ```
-brew install lua liblo libmonome
+brew install lua liblo libmonome sdl2 sdl2_ttf
 ```
 
 to build, invoke
