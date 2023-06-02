@@ -11,6 +11,11 @@ def configure(ctx):
     ctx.load('clang_compilation_database')
 
     if ctx.env.DEST_OS == 'darwin':
+        ctx.env.INCLUDES_LUA = ['/opt/homebrew/include', '/usr/local/include']
+        ctx.env.LIB_LUA = 'lua'
+        ctx.env.LIBPATH_LUA = ['/opt/homebrew/lib', '/usr/local/lib']
+        ctx.env.LDFLAGS_LUA = '-llua'
+        
         ctx.env.INCLUDES_LO = '/opt/homebrew/include'
         ctx.env.LIB_LO = 'lo'
         ctx.env.LIBPATH_LO = '/opt/homebrew/lib'
@@ -36,6 +41,7 @@ def configure(ctx):
         mandatory = True,
         quote = 0,
         lib = "lua",
+        use = "LUA",
         uselib_store = "LUA",
         msg = "Checking for lua"
     )
