@@ -15,6 +15,7 @@ typedef enum {
   EVENT_ARC_KEY,
   EVENT_KEY,
   EVENT_SCREEN_CHECK,
+  EVENT_METRO,
 } event_t;
 
 struct event_common {
@@ -80,6 +81,12 @@ struct event_key {
   uint16_t scancode;
 };
 
+struct event_metro {
+  struct event_common common;
+  int id;
+  int stage;
+};
+
 union event_data {
   uint32_t type;
   struct event_exec_code_line exec_code_line;
@@ -91,4 +98,5 @@ union event_data {
   struct event_arc_encoder_delta arc_encoder_delta;
   struct event_arc_encoder_key arc_encoder_key;
   struct event_key key;
+  struct event_metro metro;
 };

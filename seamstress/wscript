@@ -16,6 +16,7 @@ def build(bld):
         'src/device/device_monome.c',
         'src/device/device_common.c',
         'src/screen.c',
+        'src/metro.c'
         ]
     if bld.env.DEST_OS == 'linux':
         seamstress_src.append('src/device/device_monitor_linux.c')

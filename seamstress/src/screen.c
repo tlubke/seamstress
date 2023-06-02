@@ -8,6 +8,7 @@
 #include "events.h"
 #include "screen.h"
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -118,7 +119,7 @@ void screen_init(int x, int y) {
                             SDL_WINDOWPOS_UNDEFINED,
                             WIDTH * ZOOM,
                             HEIGHT * ZOOM,
-                            SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+                            SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE );
   if (window == NULL) {
     fprintf(stderr, "screen_init: %s\n", SDL_GetError());
     return;
@@ -162,6 +163,9 @@ void screen_check(void) {
         window_rect();
         screen_redraw();
       }
+      break;
+    default:
+      break;
     }
   }
 }
@@ -180,9 +184,12 @@ void screen_deinit(void) {
 void *screen_loop(void *x) {
   (void)x;
   union event_data *ev;
+  struct timespec time;
+  time.tv_nsec = 2000000;
+  time.tv_sec = 0;
   while (1) {
     ev = event_data_new(EVENT_SCREEN_CHECK);
     event_post(ev);
-    SDL_Delay(1);
+    nanosleep(&time, NULL);
   }
 }

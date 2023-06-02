@@ -5,6 +5,7 @@
 #include "device/device_monome.h"
 #include "event_types.h"
 #include "lua_interp.h"
+#include "metro.h"
 #include "osc.h"
 #include "screen.h"
 #include "spindle.h"
@@ -55,6 +56,9 @@ static int _screen_rect_fill(lua_State *l);
 static int _screen_text(lua_State *l);
 static int _screen_color(lua_State *l);
 static int _screen_clear(lua_State *l);
+static int _metro_start(lua_State *l);
+static int _metro_stop(lua_State *l);
+static int _metro_set_time(lua_State *l);
 
 static inline void lua_register_seamstress(const char *name, int (*f)(lua_State *l)) {
   lua_pushcfunction(lvm, f);
@@ -89,6 +93,9 @@ void s_init(void) {
   lua_register_seamstress("screen_text", &_screen_text);
   lua_register_seamstress("screen_color", &_screen_color);
   lua_register_seamstress("screen_clear", &_screen_clear);
+  lua_register_seamstress("metro_start", &_metro_start);
+  lua_register_seamstress("metro_stop", &_metro_stop);
+  lua_register_seamstress("metro_set_time", &_metro_set_time);
 
   lua_register_seamstress("reset_lvm", &_reset_lvm);
 
@@ -264,8 +271,8 @@ int _screen_color(lua_State *l) {
 
 int _screen_pixel(lua_State *l) {
   lua_check_num_args(2);
-  int x = (int)luaL_checkinteger(l, 1);
-  int y = (int)luaL_checkinteger(l, 2);
+  int x = (int)luaL_checkinteger(l, 1) - 1;
+  int y = (int)luaL_checkinteger(l, 2) - 1;
   screen_pixel(x, y);
   lua_settop(l, 0);
   return 0;
@@ -273,10 +280,10 @@ int _screen_pixel(lua_State *l) {
 
 int _screen_line(lua_State *l) {
   lua_check_num_args(4);
-  int ax = (int)luaL_checkinteger(l, 1);
-  int ay = (int)luaL_checkinteger(l, 2);
-  int bx = (int)luaL_checkinteger(l, 3);
-  int by = (int)luaL_checkinteger(l, 4);
+  int ax = (int)luaL_checkinteger(l, 1) - 1;
+  int ay = (int)luaL_checkinteger(l, 2) - 1;
+  int bx = (int)luaL_checkinteger(l, 3) - 1;
+  int by = (int)luaL_checkinteger(l, 4) - 1;
   screen_line(ax, ay, bx, by);
   lua_settop(l, 0);
   return 0;
@@ -284,8 +291,8 @@ int _screen_line(lua_State *l) {
 
 int _screen_rect(lua_State *l) {
   lua_check_num_args(4);
-  int x = (int)luaL_checkinteger(l, 1);
-  int y = (int)luaL_checkinteger(l, 2);
+  int x = (int)luaL_checkinteger(l, 1) - 1;
+  int y = (int)luaL_checkinteger(l, 2) - 1;
   int w = (int)luaL_checkinteger(l, 3);
   int h = (int)luaL_checkinteger(l, 4);
   screen_rect(x, y, w, h);
@@ -295,8 +302,8 @@ int _screen_rect(lua_State *l) {
 
 int _screen_rect_fill(lua_State *l) {
   lua_check_num_args(4);
-  int x = (int)luaL_checkinteger(l, 1);
-  int y = (int)luaL_checkinteger(l, 2);
+  int x = (int)luaL_checkinteger(l, 1) - 1;
+  int y = (int)luaL_checkinteger(l, 2) - 1;
   int w = (int)luaL_checkinteger(l, 3);
   int h = (int)luaL_checkinteger(l, 4);
   screen_rect_fill(x, y, w, h);
@@ -306,8 +313,8 @@ int _screen_rect_fill(lua_State *l) {
 
 int _screen_text(lua_State *l) {
   lua_check_num_args(3);
-  int x = (int)luaL_checkinteger(l, 1);
-  int y = (int)luaL_checkinteger(l, 2);
+  int x = (int)luaL_checkinteger(l, 1) - 1;
+  int y = (int)luaL_checkinteger(l, 2) - 1;
   const char *text = lua_tostring(l, 3);
   screen_text(x, y, text);
   lua_settop(l, 0);
@@ -390,6 +397,48 @@ int _osc_send(lua_State *l) {
   }
   osc_send(host, port, path, msg);
   lo_message_free(msg);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _metro_start(lua_State *l) {
+  static int idx = 0;
+  double seconds = -1.0;
+  int count = -1;
+  int stage = 0;
+  int nargs = lua_gettop(l);
+
+  if (nargs > 0) {
+    idx = (int)luaL_checkinteger(l, 1) - 1;
+  }
+  if (nargs > 1) {
+    seconds = (double)luaL_checknumber(l, 2);
+  }
+  if (nargs > 2) {
+    count = (int)luaL_checkinteger(l, 3);
+  }
+  if (nargs > 3) {
+    stage = (int)luaL_checkinteger(l, 4) - 1;
+  }
+
+  metro_start(idx, seconds, count, stage);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _metro_stop(lua_State *l) {
+  lua_check_num_args(1);
+  int idx = (int)luaL_checkinteger(l, 1) - 1;
+  metro_stop(idx);
+  lua_settop(l, 0);
+  return 0;
+}
+
+int _metro_set_time(lua_State *l) {
+  lua_check_num_args(2);
+  int idx = (int)luaL_checkinteger(l, 1) - 1;
+  double sec = (double)luaL_checknumber(l, 2);
+  metro_set_time(idx, sec);
   lua_settop(l, 0);
   return 0;
 }
@@ -524,4 +573,13 @@ void s_handle_arc_key(int id, int number, int state) {
   lua_pushinteger(lvm, number + 1);
   lua_pushinteger(lvm, state > 0);
   report(lvm, docall(lvm, 3, 0));
+}
+
+void s_handle_metro(const int idx, const int stage) {
+  lua_getglobal(lvm, "_seamstress");
+  lua_getfield(lvm, -1, "metro");
+  lua_remove(lvm, -2);
+  lua_pushinteger(lvm, idx + 1);
+  lua_pushinteger(lvm, stage + 1);
+  report(lvm, docall(lvm, 2, 0));
 }

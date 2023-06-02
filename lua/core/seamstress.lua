@@ -3,6 +3,7 @@ arc = require 'core/arc'
 osc = require 'core/osc'
 util = require 'lib/util'
 screen = require 'core/screen'
+metro = require 'core/metro'
 
 init = function () end
 

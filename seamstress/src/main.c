@@ -4,6 +4,7 @@
 
 #include "args.h"
 #include "events.h"
+#include "metro.h"
 #include "osc.h"
 #include "screen.h"
 #include "spindle.h"
@@ -13,6 +14,7 @@
 void print_version(void);
 
 void cleanup(void) {
+  metros_deinit();
   screen_deinit();
   dev_monitor_deinit();
   osc_deinit();
@@ -28,6 +30,7 @@ int main(int argc, char **argv) {
 
   fprintf(stderr, "starting event handler\n");
   events_init();
+  metros_init();
 
   fprintf(stderr, "starting spindle\n");
   s_init();

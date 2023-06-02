@@ -20,7 +20,7 @@ struct ev_node {
 struct ev_queue {
   struct ev_node *head;
   struct ev_node *tail;
-  ssize_t size;
+  size_t size;
   pthread_cond_t nonempty;
   pthread_mutex_t lock;
 };
@@ -29,6 +29,7 @@ struct ev_queue queue;
 bool quit;
 
 static void handle_event(union event_data *ev);
+
 static void ev_queue_push(union event_data *ev) {
   struct ev_node *event_node = calloc(1, sizeof(struct ev_node));
   event_node->ev = ev;
@@ -41,6 +42,7 @@ static void ev_queue_push(union event_data *ev) {
   queue.tail = event_node;
   queue.size += 1;
 }
+
 static union event_data *ev_queue_pop() {
   struct ev_node *event_node = queue.head;
   if (event_node == NULL) {
@@ -110,9 +112,7 @@ void event_data_free(union event_data *ev) {
 void event_post(union event_data *ev) {
   assert(ev != NULL);
   pthread_mutex_lock(&queue.lock);
-  if (queue.size == 0) {
-    pthread_cond_signal(&queue.nonempty);
-  }
+  pthread_cond_broadcast(&queue.nonempty);
   ev_queue_push(ev);
   pthread_mutex_unlock(&queue.lock);
 }
@@ -172,6 +172,9 @@ static void handle_event(union event_data *ev) {
     break;
   case EVENT_SCREEN_CHECK:
     screen_check();
+    break;
+  case EVENT_METRO:
+    s_handle_metro(ev->metro.id, ev->metro.stage);
     break;
   }
   event_data_free(ev);
