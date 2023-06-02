@@ -46,14 +46,14 @@ int main(int argc, char **argv) {
   fprintf(stderr, "starting input\n");
   input_init();
 
-  fprintf(stderr, "spinning spindle\n");
-  s_startup();
-
   fprintf(stderr, "starting screen\n");
   screen_init(args_width(), args_height());
 
   fprintf(stderr, "scanning for devices\n");
   dev_monitor_scan();
+
+  fprintf(stderr, "spinning spindle\n");
+  s_startup();
 
   fprintf(stderr, "handling events\n");
   event_handle_pending();
