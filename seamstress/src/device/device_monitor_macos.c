@@ -45,10 +45,10 @@ static int wait_on_parent_usbdevice(io_service_t device) {
 static void iterate_devices(void *context, io_iterator_t iter) {
   (void)context;
   io_service_t device;
-  io_struct_inband_t device_node;
   unsigned int len = 256;
 
   while ((device = IOIteratorNext(iter))) {
+    io_struct_inband_t device_node;
     IORegistryEntryGetProperty(device, kIODialinDeviceKey, device_node, &len);
 
     if (!wait_on_parent_usbdevice(device)) {
@@ -106,7 +106,18 @@ static void *watch_loop(void *data) {
                                    iterate_devices,
                                    state,
                                    &state->iter_add);
-  while (IOIteratorNext(state->iter_add)) {};
+  io_service_t device;
+  io_struct_inband_t device_node;
+  unsigned int len = 256;
+  while ((device = IOIteratorNext(state->iter_add))) {
+    IORegistryEntryGetProperty(device, kIODialinDeviceKey, device_node, &len);
+
+    fprintf(stderr, "device node: %s\n", device_node);
+    if (!wait_on_parent_usbdevice(device)) {
+      dev_add(device_node);
+    }
+    IOObjectRelease(device);
+  };
 
   state->notify_destroy = IONotificationPortCreate(kIOMainPortDefault);
   if (!(state->notify_destroy)) {

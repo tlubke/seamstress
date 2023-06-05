@@ -49,16 +49,11 @@ int main(int argc, char **argv) {
   fprintf(stderr, "starting screen\n");
   screen_init(args_width(), args_height());
 
-  fprintf(stderr, "scanning for devices\n");
-  dev_monitor_scan();
-
   fprintf(stderr, "spinning spindle\n");
   s_startup();
 
-  fprintf(stderr, "handling events\n");
-  event_handle_pending();
-
   fprintf(stderr, "starting main loop\n");
+  event_handle_pending();
   event_loop();
 }
 
