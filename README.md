@@ -22,6 +22,7 @@ but zig is not a big download.
 to build, invoke
 
 ```
+git submodule update --init --recursive
 ./waf configure
 ./waf
 sudo ./waf install
