@@ -1,14 +1,16 @@
 # dear Emacs, this is -*- python -*-
 
 top = '.'
-out = 'build'
+out = '.'
+
+from waflib.Configure import conf
 
 def options(ctx):
     ctx.load('compiler_c')
 
 def configure(ctx):
     ctx.load('compiler_c')
-    ctx.load('clang_compilation_database')
+    ctx.find_program('zig', var='ZIG', mandatory=False)
 
     if ctx.env.DEST_OS == 'darwin':
         ctx.env.INCLUDES_LUA = ['/opt/homebrew/include', '/usr/local/include']
@@ -81,14 +83,11 @@ def configure(ctx):
         uselib_store = "MONOME",
         msg = "Checking for libmonome"
     )
-
-    ctx.define('VERSION_MAJOR', 0)
-    ctx.define('VERSION_MINOR', 3)
-    ctx.define('VERSION_PATCH', 2)
     return
 
 def build(ctx):
-    ctx.recurse('seamstress')
+    if ctx.env.ZIG:
+        ctx(rule='${ZIG} build -Doptimize=ReleaseFast')
     start_dir = ctx.path.find_dir('lua')
     ctx.install_files('${PREFIX}/share/seamstress/lua',
                       start_dir.ant_glob('**/*.lua'),
@@ -97,4 +96,6 @@ def build(ctx):
     ctx.install_files('${PREFIX}/share/seamstress/resources',
                       start_dir.ant_glob('*.ttf'),
                       cwd=start_dir, relative_trick=True)
+    if ctx.is_install:
+        ctx(rule='cp zig-out/bin/seamstress ${PREFIX}/bin/seamstress')
     return

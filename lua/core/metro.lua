@@ -117,7 +117,8 @@ for i=1,Metro.num_metros do
   Metro.assigned[i] = false
 end
 
-_seamstress.metro = function (id, stage)
+_seamstress.metro = {
+  event = function (id, stage)
 	local m = Metro.metros[id]
   if m then
     if m.event then
@@ -129,6 +130,7 @@ _seamstress.metro = function (id, stage)
       end
     end
   end
-end
+  end
+}
 
 return Metro
