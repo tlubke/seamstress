@@ -9,6 +9,7 @@ pub const imported = @cImport({
     @cInclude("SDL2/SDL_render.h");
     @cInclude("SDL2/SDL_surface.h");
     @cInclude("SDL2/SDL_video.h");
+    @cInclude("portmidi.h");
 });
 
 pub const os_imported = switch (builtin.target.os.tag) {
