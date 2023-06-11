@@ -21,6 +21,7 @@ pub const Event = enum(u4) {
     Screen_Key,
     Screen_Check,
     Metro,
+    MIDI,
 };
 
 pub const Data = union(Event) {
@@ -37,6 +38,7 @@ pub const Data = union(Event) {
     Screen_Key: event_screen_key,
     Screen_Check: void,
     Metro: event_metro,
+    MIDI: event_midi,
     // event data struct
 };
 
@@ -69,6 +71,8 @@ const event_screen_key = struct { scancode: i32 = undefined };
 const event_screen_check = struct {};
 
 const event_metro = struct { id: u8 = undefined, stage: i64 = undefined };
+
+const event_midi = struct { source: i32 = undefined, timestamp: u64 = undefined, words: []const u32 = undefined };
 
 var allocator: std.mem.Allocator = undefined;
 
@@ -138,6 +142,7 @@ pub fn new(event_type: Event) !*Data {
         Event.Screen_Key => Data{ .Screen_Key = event_screen_key{} },
         Event.Screen_Check => Data{ .Screen_Check = {} },
         Event.Metro => Data{ .Metro = event_metro{} },
+        Event.MIDI => Data{ .MIDI = event_midi{} },
     };
     return event;
 }
@@ -152,6 +157,9 @@ pub fn free(event: *Data) void {
         },
         Event.Exec_Code_Line => |e| {
             allocator.free(e.line);
+        },
+        Event.MIDI => |e| {
+            allocator.free(e.words);
         },
         else => {},
     }
@@ -285,6 +293,7 @@ fn handle(event: *Data) !void {
         Event.Metro => {
             try spindle.metro_event(event.Metro.id, event.Metro.stage);
         },
+        Event.MIDI => {},
     }
     free(event);
 }

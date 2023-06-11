@@ -1,13 +1,6 @@
-const dev = @import("device.zig");
+const dev = @import("monome.zig");
 const std = @import("std");
-const c = @cImport({
-    @cInclude("CoreFoundation/CoreFoundation.h");
-    @cInclude("IOKit/IOKitKeys.h");
-    @cInclude("IOKit/IOKitLib.h");
-    @cInclude("IOKit/IOTypes.h");
-    @cInclude("IOKit/usb/IOUSBLib.h");
-    @cInclude("IOKit/serial/IOSerialKeys.h");
-});
+const c = @import("c_includes.zig").os_imported;
 
 const notify = struct { notify_add: c.IONotificationPortRef, notify_destroy: c.IONotificationPortRef, iter_add: c.io_iterator_t, iter_destroy: c.io_iterator_t };
 
@@ -45,7 +38,7 @@ fn deiterate_devices(context: ?*anyopaque, iter: c.io_iterator_t) callconv(.C) v
     var len: u32 = 256;
     while (device != 0) : (device = c.IOIteratorNext(iter)) {
         _ = c.IORegistryEntryGetProperty(device, c.kIODialinDeviceKey, device_node.ptr, &len);
-        dev.remove(dev.Dev_t.Monome, device_node[0..len]) catch {
+        dev.remove(device_node[0..len]) catch {
             std.debug.print("removing device failed at address {s}\n", .{device_node[0..len]});
         };
         _ = c.IOObjectRelease(device);
@@ -59,9 +52,8 @@ inline fn try_add(iter: c.io_iterator_t) void {
     var len: u32 = 256;
     while (device != 0) : (device = c.IOIteratorNext(iter)) {
         _ = c.IORegistryEntryGetProperty(device, c.kIODialinDeviceKey, device_node.ptr, &len);
-        // std.debug.print("device node: {s}\n", .{device_node[0..len]});
         if (!wait_on_parent_usbdevice(device)) {
-            dev.add(dev.Dev_t.Monome, device_node[0..len]) catch {
+            dev.add(device_node[0..len]) catch {
                 std.debug.print("adding device failed at address {s}\n", .{device_node[0..len]});
             };
         }
@@ -78,6 +70,11 @@ pub fn init(alloc_pointer: std.mem.Allocator) !void {
 }
 
 fn loop() !void {
+    try setup_usb();
+    c.CFRunLoopRun();
+}
+
+fn setup_usb() !void {
     var matching: c.CFMutableDictionaryRef = undefined;
     const kIOSerialBSDTypeKey = "IOSerialBSDClientType";
     const kIOSerialBSDAllTypes = "IOSerialStream";
@@ -90,7 +87,7 @@ fn loop() !void {
     state.notify_add = c.IONotificationPortCreate(main_port);
     if (state.notify_add == null) {
         std.debug.print("dev_monitor_init(): couldn't allocate notification port!\n", .{});
-        return;
+        return error.Fail;
     }
     c.CFRunLoopAddSource(c.CFRunLoopGetCurrent(), //
         c.IONotificationPortGetRunLoopSource(state.notify_add.?), //
@@ -106,7 +103,7 @@ fn loop() !void {
     state.notify_destroy = c.IONotificationPortCreate(c.kIOMainPortDefault);
     if (state.notify_destroy == null) {
         std.debug.print("dev_monitorr_init(): couldn't allocate notification port!\n", .{});
-        return;
+        return error.Fail;
     }
     c.CFRunLoopAddSource(c.CFRunLoopGetCurrent(), //
         c.IONotificationPortGetRunLoopSource(state.notify_destroy), //
@@ -119,7 +116,6 @@ fn loop() !void {
         &state.iter_destroy); //
     while (c.IOIteratorNext(state.iter_destroy) != 0) {}
     run_loop = c.CFRunLoopGetCurrent();
-    c.CFRunLoopRun();
 }
 
 pub fn deinit() void {

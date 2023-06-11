@@ -86,8 +86,7 @@ def configure(ctx):
     return
 
 def build(ctx):
-    if ctx.env.ZIG:
-        ctx(rule='${ZIG} build -Doptimize=ReleaseFast')
+    ctx(rule='${ZIG} build -Doptimize=ReleaseFast')
     start_dir = ctx.path.find_dir('lua')
     ctx.install_files('${PREFIX}/share/seamstress/lua',
                       start_dir.ant_glob('**/*.lua'),

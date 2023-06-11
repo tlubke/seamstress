@@ -460,9 +460,9 @@ pub fn reset_lua() !void {
 }
 
 pub fn monome_add(dev: *monome.Device) !void {
-    const id = dev.base.id;
-    const serial = dev.base.serial;
-    const name = dev.base.name;
+    const id = dev.id;
+    const serial = dev.serial;
+    const name = dev.name;
     try push_lua_func("monome", "add");
     lvm.pushInteger(@intCast(i64, id + 1));
     var serial_copy = try allocator.allocSentinel(u8, serial.len, 0);

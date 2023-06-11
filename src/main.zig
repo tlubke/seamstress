@@ -13,7 +13,7 @@ const input = @import("input.zig");
 const screen = @import("screen.zig");
 const c = @import("c_includes.zig").imported;
 
-const VERSION = std.builtin.Version{ .major = 0, .minor = 4, .patch = 0 };
+const VERSION = std.builtin.Version{ .major = 0, .minor = 4, .patch = 1 };
 
 pub fn main() !void {
     defer std.debug.print("seamstress shutdown complete\n", .{});
@@ -80,7 +80,7 @@ fn print_version() !void {
     var bw = std.io.bufferedWriter(stdout_file);
     const stdout = bw.writer();
     try stdout.print("SEAMSTRESS\n", .{});
-    try stdout.print("seamstress-zig version: {d}.{d}.{d}\n", VERSION);
+    try stdout.print("seamstress version: {d}.{d}.{d}\n", VERSION);
     try bw.flush();
 }
 
