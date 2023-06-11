@@ -1,7 +1,6 @@
 const std = @import("std");
 const spindle = @import("spindle.zig");
 const osc = @import("osc.zig");
-const devices = @import("device.zig");
 const monome = @import("monome.zig");
 const screen = @import("screen.zig");
 const c = std.c;
