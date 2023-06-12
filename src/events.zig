@@ -3,6 +3,7 @@ const spindle = @import("spindle.zig");
 const osc = @import("osc.zig");
 const monome = @import("monome.zig");
 const screen = @import("screen.zig");
+const midi = @import("midi.zig");
 const c = std.c;
 
 pub const Event = enum(u4) {
@@ -20,6 +21,8 @@ pub const Event = enum(u4) {
     Screen_Key,
     Screen_Check,
     Metro,
+    MIDI_Add,
+    MIDI_Remove,
     MIDI,
 };
 
@@ -37,17 +40,23 @@ pub const Data = union(Event) {
     Screen_Key: event_screen_key,
     Screen_Check: void,
     Metro: event_metro,
+    MIDI_Add: event_midi_add,
+    MIDI_Remove: event_midi_remove,
     MIDI: event_midi,
     // event data struct
 };
 
-const event_exec_code_line = struct { line: [:0]const u8 = undefined };
+const event_exec_code_line = struct {
+    line: [:0]const u8 = undefined,
+    // exec_code
+};
 
 const event_osc = struct {
     from_host: [:0]const u8 = undefined,
     from_port: [:0]const u8 = undefined,
     path: [:0]const u8 = undefined,
     msg: []osc.Lo_Arg = undefined,
+    // osc
 };
 
 const event_monome_add = struct {
@@ -55,23 +64,75 @@ const event_monome_add = struct {
     // device
 };
 
-const event_monome_remove = struct { id: usize = undefined };
+const event_monome_remove = struct {
+    id: usize = undefined,
+    // monome_remove
+};
 
-const event_grid_key = struct { id: usize = undefined, x: u32 = undefined, y: u32 = undefined, state: i2 = undefined };
+const event_grid_key = struct {
+    id: usize = undefined,
+    x: u32 = undefined,
+    y: u32 = undefined,
+    state: i2 = undefined,
+    // grid_key
+};
 
-const event_grid_tilt = struct { id: usize = undefined, sensor: u32 = undefined, x: i32 = undefined, y: i32 = undefined, z: i32 = undefined };
+const event_grid_tilt = struct {
+    id: usize = undefined,
+    sensor: u32 = undefined,
+    x: i32 = undefined,
+    y: i32 = undefined,
+    z: i32 = undefined,
+    // grid_tilt
+};
 
-const event_arc_delta = struct { id: usize = undefined, ring: u32 = undefined, delta: i32 = undefined };
+const event_arc_delta = struct {
+    id: usize = undefined,
+    ring: u32 = undefined,
+    delta: i32 = undefined,
+    // arc_delta
+};
 
-const event_arc_key = struct { id: usize = undefined, ring: u32 = undefined, state: i2 = undefined };
+const event_arc_key = struct {
+    id: usize = undefined,
+    ring: u32 = undefined,
+    state: i2 = undefined,
+    // arc_key
+};
 
-const event_screen_key = struct { scancode: i32 = undefined };
+const event_screen_key = struct {
+    scancode: i32 = undefined,
+    // screen_key
+};
 
 const event_screen_check = struct {};
 
-const event_metro = struct { id: u8 = undefined, stage: i64 = undefined };
+const event_metro = struct {
+    id: u8 = undefined,
+    stage: i64 = undefined,
+    // metro
+};
 
-const event_midi = struct { source: i32 = undefined, timestamp: u64 = undefined, words: []const u32 = undefined };
+const event_midi_add = struct {
+    dev: *midi.Device = undefined,
+    dev_type: midi.Dev_t = undefined,
+    id: u32 = undefined,
+    name: []const u8 = undefined,
+    // midi_add
+};
+
+const event_midi_remove = struct {
+    id: u32 = undefined,
+    dev_type: midi.Dev_t = undefined,
+    // midi_remove
+};
+
+const event_midi = struct {
+    id: u32 = undefined,
+    timestamp: f64 = undefined,
+    message: []const u8 = undefined,
+    // midi
+};
 
 var allocator: std.mem.Allocator = undefined;
 
@@ -82,7 +143,14 @@ const Event_Node = struct {
     ev: *Data,
 };
 
-const Event_Queue = struct { head: ?*Event_Node, tail: ?*Event_Node, size: usize, lock: std.Thread.Mutex, cond: std.Thread.Condition };
+const Event_Queue = struct {
+    head: ?*Event_Node,
+    tail: ?*Event_Node,
+    size: usize,
+    lock: std.Thread.Mutex,
+    cond: std.Thread.Condition,
+    // queue
+};
 
 var queue = Event_Queue{
     // event queue
@@ -94,7 +162,6 @@ var queue = Event_Queue{
 };
 
 var quit: bool = false;
-var pool: []?Data = undefined;
 
 pub fn init(alloc_ptr: std.mem.Allocator) !void {
     allocator = alloc_ptr;
@@ -120,6 +187,7 @@ pub fn loop() !void {
 }
 
 pub fn new(event_type: Event) !*Data {
+    // TODO: surely there's a metaprogramming solution to this nonsense
     var event = try allocator.create(Data);
     event.* = switch (event_type) {
         Event.Quit => Data{ .Quit = {} },
@@ -135,6 +203,8 @@ pub fn new(event_type: Event) !*Data {
         Event.Screen_Key => Data{ .Screen_Key = event_screen_key{} },
         Event.Screen_Check => Data{ .Screen_Check = {} },
         Event.Metro => Data{ .Metro = event_metro{} },
+        Event.MIDI_Add => Data{ .MIDI_Add = event_midi_add{} },
+        Event.MIDI_Remove => Data{ .MIDI_Remove = event_midi_remove{} },
         Event.MIDI => Data{ .MIDI = event_midi{} },
     };
     return event;
@@ -151,8 +221,11 @@ pub fn free(event: *Data) void {
         Event.Exec_Code_Line => |e| {
             allocator.free(e.line);
         },
+        Event.MIDI_Add => |e| {
+            allocator.free(e.name);
+        },
         Event.MIDI => |e| {
-            allocator.free(e.words);
+            allocator.free(e.message);
         },
         else => {},
     }
@@ -286,6 +359,8 @@ fn handle(event: *Data) !void {
         Event.Metro => {
             try spindle.metro_event(event.Metro.id, event.Metro.stage);
         },
+        Event.MIDI_Add => {},
+        Event.MIDI_Remove => {},
         Event.MIDI => {},
     }
     free(event);

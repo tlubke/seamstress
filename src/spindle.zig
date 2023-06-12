@@ -5,6 +5,7 @@ const std = @import("std");
 const args = @import("args.zig");
 const osc = @import("osc.zig");
 const monome = @import("monome.zig");
+const midi = @import("midi.zig");
 const screen = @import("screen.zig");
 const metro = @import("metros.zig");
 const ziglua = @import("ziglua");
@@ -54,6 +55,8 @@ pub fn init(config: []const u8, alloc_pointer: std.mem.Allocator) !void {
     register_seamstress("metro_start", ziglua.wrap(metro_start));
     register_seamstress("metro_stop", ziglua.wrap(metro_stop));
     register_seamstress("metro_set_time", ziglua.wrap(metro_set_time));
+
+    register_seamstress("midi_write", ziglua.wrap(midi_write));
 
     register_seamstress("reset_lvm", ziglua.wrap(reset_lvm));
 
@@ -529,6 +532,16 @@ fn metro_set_time(l: *Lua) i32 {
     return 0;
 }
 
+fn midi_write(l: *Lua) i32 {
+    check_num_args(l, 2);
+    l.checkType(1, ziglua.LuaType.light_userdata);
+    const dev = l.toUserdata(midi.Device, 1) catch unreachable;
+    const bytes = l.toBytes(2) catch unreachable;
+    dev.Output.write(bytes);
+    l.setTop(0);
+    return 0;
+}
+
 /// resets lua VM.
 // @function reset_lvm
 fn reset_lvm(l: *Lua) i32 {
@@ -682,6 +695,39 @@ pub fn metro_event(id: u8, stage: i64) !void {
     lvm.pushInteger(id + 1);
     lvm.pushInteger(stage);
     try docall(&lvm, 2, 0);
+}
+
+pub fn midi_add(dev: *midi.Device, dev_type: midi.Dev_t, id: u32, name: []const u8) !void {
+    try push_lua_func("midi", "add");
+    var name_copy = try allocator.allocSentinel(u8, name.len, 0);
+    defer allocator.free(name_copy);
+    std.mem.copyForwards(u8, name_copy, name);
+    _ = lvm.pushString(name_copy);
+    switch (dev_type) {
+        midi.Dev_t.Input => lvm.pushBoolean(true),
+        midi.Dev_t.Output => lvm.pushBoolean(false),
+    }
+    lvm.pushInteger(id);
+    lvm.pushLightUserdata(dev);
+    try docall(&lvm, 4, 0);
+}
+
+pub fn midi_remove(dev_type: midi.Dev_t, id: u32) !void {
+    try push_lua_func("midi", "remove");
+    switch (dev_type) {
+        midi.Dev_t.Input => lvm.pushBoolean(true),
+        midi.Dev_t.Output => lvm.pushBoolean(false),
+    }
+    lvm.pushInteger(id);
+    try docall(&lvm, 2, 0);
+}
+
+pub fn midi_event(id: u32, timestamp: f64, bytes: []const u8) !void {
+    try push_lua_func("midi", "event");
+    lvm.pushInteger(id);
+    lvm.pushNumber(timestamp);
+    _ = lvm.pushBytes(bytes);
+    try docall(&lvm, 3, 0);
 }
 
 // -------------------------------------------------------

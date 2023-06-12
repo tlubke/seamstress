@@ -36,7 +36,7 @@ pub fn build(b: *std.Build) void {
     exe.linkSystemLibrary("monome");
     exe.linkSystemLibrary("SDL2");
     exe.linkSystemLibrary("SDL2_ttf");
-    exe.linkSystemLibrary("portmidi");
+    exe.linkSystemLibrary("rtmidi");
     exe.linkFramework("CoreFoundation");
     exe.linkFramework("IOKit");
     exe.addModule("ziglua", ziglua.compileAndCreateModule(b, exe, .{}));
