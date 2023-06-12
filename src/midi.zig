@@ -17,7 +17,7 @@ pub const Device = union(Dev_t) {
     const input_dev = struct {
         id: u32,
         quit: bool,
-        ptr: *c.RtMidiWrapper,
+        ptr: *c.RtMidiWrapper
         thread: std.Thread = undefined,
         buf: [1024]u8 = undefined,
         name: []const u8,

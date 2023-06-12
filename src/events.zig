@@ -359,9 +359,15 @@ fn handle(event: *Data) !void {
         Event.Metro => {
             try spindle.metro_event(event.Metro.id, event.Metro.stage);
         },
-        Event.MIDI_Add => {},
-        Event.MIDI_Remove => {},
-        Event.MIDI => {},
+        Event.MIDI_Add => {
+            try spindle.midi_add(event.MIDI_Add.dev, event.MIDI_Add.dev_type, event.MIDI_Add.id, event.MIDI_Add.name);
+        },
+        Event.MIDI_Remove => {
+            try spindle.midi_remove(event.MIDI_Remove.dev_type, event.MIDI_Remove.id);
+        },
+        Event.MIDI => {
+            try spindle.midi_event(event.MIDI.id, event.MIDI.timestamp, event.MIDI.message);
+        },
     }
     free(event);
 }
