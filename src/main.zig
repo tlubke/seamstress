@@ -13,7 +13,7 @@ const input = @import("input.zig");
 const screen = @import("screen.zig");
 const c = @import("c_includes.zig").imported;
 
-const VERSION = std.builtin.Version{ .major = 0, .minor = 4, .patch = 1 };
+const VERSION = std.builtin.Version{ .major = 0, .minor = 4, .patch = 2 };
 
 pub fn main() !void {
     defer std.debug.print("seamstress shutdown complete\n", .{});

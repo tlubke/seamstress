@@ -105,13 +105,7 @@ test "init" {
 }
 
 pub fn loop() !void {
-    defer allocator.free(pool);
-    //  var event = try new(Event.Exec_Code_Line);
-    //  var line = try allocator.allocSentinel(u8, 6, 0);
-    //  std.mem.copyForwards(u8, line, "init()");
-    //  event.Exec_Code_Line.line = line;
-    //  try post(event);
-
+    std.debug.print("> ", .{});
     while (!quit) {
         queue.lock.lock();
         while (queue.size == 0) {

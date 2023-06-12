@@ -78,6 +78,7 @@ fn register_seamstress(name: [:0]const u8, f: ziglua.CFn) void {
 pub fn deinit() void {
     std.debug.print("shutting down lua vm\n", .{});
     lvm.deinit();
+    if (save_buf) |s| allocator.free(s);
 }
 
 pub fn startup(script: [:0]const u8) !void {
@@ -559,7 +560,6 @@ fn save_statement_buffer(buf: []u8) !void {
     }
     save_buf = try allocator.alloc(u8, buf.len);
     std.mem.copyForwards(u8, save_buf.?, buf);
-    allocator.free(buf);
 }
 
 fn clear_statement_buffer() void {
@@ -609,20 +609,30 @@ fn docall(l: *Lua, nargs: i32, nres: i32) !void {
 fn handle_line(l: *Lua, line: [:0]const u8) !void {
     l.setTop(0);
     _ = l.pushString(line);
-    add_return(l) catch |err| {
-        if (err != error.Syntax) return err;
-        statement(l) catch |err2| {
-            if (err2 != error.Syntax) return err2;
+    if (save_buf != null) {
+        statement(l) catch |err| {
+            if (err != error.Syntax) return err;
             l.setTop(0);
+            std.debug.print(">... ", .{});
             return;
         };
-    };
+    } else {
+        add_return(l) catch |err| {
+            if (err != error.Syntax) return err;
+            statement(l) catch |err2| {
+                if (err2 != error.Syntax) return err2;
+                l.setTop(0);
+                std.debug.print(">... ", .{});
+                return;
+            };
+        };
+    }
     try docall(l, 0, ziglua.mult_return);
     if (l.getTop() == 0) {
-        std.debug.print("<ok>\n", .{});
+        std.debug.print("> ", .{});
     } else {
         try lua_print(l);
-        std.debug.print("\n", .{});
+        std.debug.print("> ", .{});
     }
     l.setTop(0);
 }
@@ -649,6 +659,7 @@ fn statement(l: *Lua) !void {
         }
         return err;
     };
+    clear_statement_buffer();
     l.remove(1);
 }
 
