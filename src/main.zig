@@ -11,9 +11,10 @@ const dev_monitor = switch (builtin.target.os.tag) {
 const osc = @import("osc.zig");
 const input = @import("input.zig");
 const screen = @import("screen.zig");
+const midi = @import("midi.zig");
 const c = @import("c_includes.zig").imported;
 
-const VERSION = std.builtin.Version{ .major = 0, .minor = 4, .patch = 2 };
+const VERSION = std.builtin.Version{ .major = 0, .minor = 5, .patch = 0 };
 
 pub fn main() !void {
     defer std.debug.print("seamstress shutdown complete\n", .{});
@@ -51,6 +52,10 @@ pub fn main() !void {
     try dev_monitor.init(allocator);
     defer dev_monitor.deinit();
 
+    std.debug.print("init MIDI\n", .{});
+    try midi.init(allocator);
+    defer midi.deinit() catch {};
+
     std.debug.print("init osc\n", .{});
     try osc.init(args.local_port, allocator);
     defer osc.deinit();
@@ -82,11 +87,4 @@ fn print_version() !void {
     try stdout.print("SEAMSTRESS\n", .{});
     try stdout.print("seamstress version: {d}.{d}.{d}\n", VERSION);
     try bw.flush();
-}
-
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
 }
