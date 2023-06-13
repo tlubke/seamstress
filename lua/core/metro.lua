@@ -1,14 +1,31 @@
+--- metro
+-- @module metro
+
+--- metro object class
+-- @type metro
 local Metro = {}
 Metro.__index = Metro
 
+--- constant representing the maximum number of metros.
+-- the actual number is hard-coded in zig,
+-- so changing this value won't have any effect
+-- @field num_metros 36
 Metro.num_metros = 36
 
 Metro.metros = {}
 Metro.available = {}
 Metro.assigned = {}
 
+--- initialize a new metro if one is available
+-- @tparam func|{event=func,time=number,count=integer} arg
+-- either a function to be executed repeatedly, or a table of arguments
+-- @tparam[opt] number arg_time time interval to execute the function; defaults to 1.0
+-- @tparam[opt] number count if positive, the number of times to execute;
+-- defaults to -1 (infinite repeats)
+-- @treturn ?metro metro if one if is available
+-- @function metro.init
 function Metro.init(arg, arg_time, arg_count)
-	local event = 0
+	local event = nil
   local time = arg_time or 1
   local count = arg_count or -1
 
@@ -40,6 +57,10 @@ function Metro.init(arg, arg_time, arg_count)
   return nil
 end
 
+--- free up a metro slot
+-- also stops a metro
+-- @tparam integer id (1-36)
+-- @function metro.free
 function Metro.free(id)
 	Metro.metros[id]:stop()
   Metro.available[id] = true
@@ -59,6 +80,13 @@ function Metro.new(id)
   return m
 end
 
+--- starts a metro
+-- @tparam metro self metro
+-- @tparam time number|{time=number,count=integer,stage=integer}
+-- either a table of arguments or a (fractional) time interval in seconds
+-- @tparam[opt] integer count stage to stop at (defaults to -1: infinite)
+-- @tparam[opt] integer stage stage to start at
+-- @function metro:start
 function Metro:start(time, count, stage)
 	if type(time) == "table" then
     if time.time then self.props.time = time.time end
@@ -73,6 +101,9 @@ function Metro:start(time, count, stage)
   _seamstress.metro_start(self.props.id, self.props.time, self.props.count, self.props.init_stage)
 end
 
+--- stops a metro
+-- @tparam metro self metro
+-- @function metro:stop
 function Metro:stop()
 	_seamstress.metro_stop(self.props.id)
   self.is_running = false

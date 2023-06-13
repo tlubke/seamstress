@@ -1,7 +1,12 @@
-local vport = require 'vport'
+--- grid
+-- @module grid
 
+--- grid object
+-- @type grid
 local Grid = {}
 Grid.__index = Grid
+
+local vport = require 'vport'
 
 Grid.devices = {}
 Grid.ports = {}
@@ -18,8 +23,8 @@ for i = 1, 4 do
     rotation = vport.wrap('rotation'),
     intensity = vport.wrap('intensity'),
     tilt_enable = vport.wrap('tilt_enable'),
-    cols = 0,
-    rows = 0
+    cols = 0, -- number of grid rows
+    rows = 0 -- number of grid columns
   }
 end
 
@@ -51,36 +56,82 @@ function Grid.new(id, serial, name, dev)
   return g
 end
 
-
+--- callback called when a grid is plugged in;
+-- overwrite in user scripts
+-- @tparam grid dev grid object
+-- @function grid.add
 function Grid.add(dev)
   print("grid added:", dev.id, dev.name, dev.serial)
 end
 
+--- attempt to connect grid at port `n`
+-- @tparam integer n (1-4)
+-- @function grid.connect
+-- @treturn grid grid
 function Grid.connect(n)
 	n = n or 1
   return Grid.ports[n]
 end
 
+--- callback executed when a grid is removed;
+-- overwrite in user scripts
+-- @tparam grid dev grid object
+-- @function grid.remove
 function Grid.remove(dev) end
 
+--- set grid rotation
+-- @tparam grid self grid object
+-- @tparam integer val rotation
+-- @todo what does this expect?
+-- @function grid:rotation
 function Grid:rotation(val)
   _seamstress.grid_set_rotation(self.dev, val)
 end
 
+--- set grid led
+-- @tparam grid self grid object
+-- @tparam integer x x-coordinate of led (1-based)
+-- @tparam integer y y-coordinate of led (1-based)
+-- @tparam integer val (0-15)
+-- @function grid:led
 function Grid:led(x, y, val)
   _seamstress.grid_set_led(self.dev, x, y, val)
 end
 
+--- set all grid leds
+-- @tparam grid self grid object
+-- @tparam integer val (0-15)
+-- @function grid:all
 function Grid:all(val)
   _seamstress.grid_all_led(self.dev, val)
 end
 
+--- refresh dirty quads
+-- @tparam grid self grid object
+-- @function grid:refresh
 function Grid:refresh()
   _seamstress.monome_refresh(self.dev)
 end
 
+--- limit led intensity
+-- @tparam grid self grid object
+-- @tparam integer i intensity limit
+-- @function grid:intensity
 function Grid:intensity(i)
   _seamstress.monome_intensity(self.dev, i)
+end
+
+--- enable/disable grid tilt sensor
+-- @tparam grid self grid object
+-- @tparam integer sensor (1-based)
+-- @tparam bool tilt enable/disable flag
+-- @function grid:tilt
+function Grid:tilt(sensor, boolean)
+	if boolean then
+    _seamstress.grid_tilt_enable(self.dev, sensor)
+  else
+    _seamstress.grid_tilt_disable(self.dev, sensor)
+  end
 end
 
 function Grid.update_devices()

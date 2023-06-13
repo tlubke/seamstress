@@ -1,7 +1,12 @@
-local vport = require 'vport'
+--- Arc
+--- @module arc
 
+--- arc object
+-- @type arc
 local Arc = {}
 Arc.__index = Arc
+
+local vport = require 'vport'
 
 Arc.devices = {}
 Arc.ports = {}
@@ -46,29 +51,62 @@ function Arc.new(id, serial, name, dev)
   return a
 end
 
+--- callback executed when arc is plugged in.
+-- overwrite in user scripts
+-- @tparam arc dev arc object
+-- @function arc.add
 function Arc.add(dev)
   print('arc added:', dev.id, dev.name, dev.serial)
 end
 
+--- attempt to connect to the first available arc.
+-- @tparam integer n (1-4)
+-- @function arc.connect
+-- @treturn arc
 function Arc.connect(n)
   n = n or 1
   return Arc.ports[n]
 end
 
+--- callback executed when arc is unplugged.
+-- overwrite in user scripts
+-- @tparam arc dev arc object
+-- @function arc.remove
 function Arc.remove(dev) end
 
+--- sets arc led.
+-- @tparam arc self arc object
+-- @tparam integer ring arc ring (1-4)
+-- @tparam integer x arc led (1-based)
+-- @tparam integer val level (0-15)
+-- @function arc:led
 function Arc:led(ring, x, val)
   _seamstress.arc_set_led(self.dev, ring, x, val)
 end
 
+--- set all leds.
+-- @tparam arc self arc object
+-- @tparam integer val level (0-15)
+-- @function arc:all
 function Arc:all(val)
   _seamstress.arc_all_led(self.dev, val)
 end
 
+--- update dirty quads.
+-- @tparam arc self arc object
+-- @function arc:refresh
 function Arc:refresh()
   _seamstress.monome_refresh(self.dev)
 end
 
+--- draw a segment.
+-- nb: this is calling down to `arc:led` underneath
+-- @tparam arc self arc object
+-- @tparam integer ring (1-4)
+-- @tparam integer from first led (1-64)
+-- @tparam integer to second led (1-64)
+-- @tparam integer level (0-15)
+-- @function arc:segment
 function Arc:segment(ring, from, to, level)
   local tau = 2 * math.pi
 
@@ -95,6 +133,14 @@ function Arc:segment(ring, from, to, level)
     leds[i] = util.round(overlap_amt / step * level)
     self:led(ring, i, leds[i])
   end
+end
+
+--- limits led intensity.
+-- @tparam arc self arc device
+-- @tparam integer i level (0-15)
+-- @function arc:intensity
+function Arc:intensity(i)
+  _seamstress.monome_intensity(self.dev, i)
 end
 
 function Arc.update_devices()

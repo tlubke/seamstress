@@ -1,3 +1,6 @@
+/// zig->lua and lua->zig interface
+// @author ryleelyman
+// @module _seamstress
 const std = @import("std");
 const args = @import("args.zig");
 const osc = @import("osc.zig");
@@ -89,6 +92,14 @@ pub fn startup(script: [:0]const u8) !void {
     try docall(&lvm, 1, 0);
 }
 
+/// sends OSC to specified address.
+// users should use `osc:send` instead.
+// @param address a table of the form `{host, port}`, both strings
+// @param path a string representing an OSC path `/like/this`
+// @param args an array whose data will be passed to OSC as arguments
+// @see osc.send
+// @usage osc.send({"localhost", "7777"}, "/send/stuff", {"a", 0, 0.5, nil, true})
+// @function osc_send
 fn osc_send(l: *Lua) i32 {
     var host: ?[*:0]const u8 = null;
     var port: ?[*:0]const u8 = null;
@@ -167,6 +178,14 @@ fn osc_send(l: *Lua) i32 {
     return 0;
 }
 
+/// sets grid led.
+// users should use `grid:led` instead.
+// @param md opaque pointer to monome device
+// @param x x-coordinate for led (1-indexed)
+// @param y y-coordinate for led (1-indexed)
+// @param val brightness for led (0-15)
+// @see grid:led
+// @function grid_set_led
 fn grid_set_led(l: *Lua) i32 {
     check_num_args(l, 4);
     l.checkType(1, ziglua.LuaType.light_userdata);
@@ -179,6 +198,12 @@ fn grid_set_led(l: *Lua) i32 {
     return 0;
 }
 
+/// sets all grid leds.
+// users should use `grid:all` instead.
+// @param md opaque pointer to monome device
+// @param val brightness for led (0-15)
+// @see grid:all
+// @function grid_all_led
 fn grid_all_led(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
@@ -189,6 +214,10 @@ fn grid_all_led(l: *Lua) i32 {
     return 0;
 }
 
+/// reports number of rows of grid device.
+// @param md opaque pointer to monome device
+// @return number of rows
+// @function grid_rows
 fn grid_rows(l: *Lua) i32 {
     check_num_args(l, 1);
     l.checkType(1, ziglua.LuaType.light_userdata);
@@ -198,6 +227,10 @@ fn grid_rows(l: *Lua) i32 {
     return 1;
 }
 
+/// reports number of columns of grid device.
+// @param md opaque pointer to monome device
+// @return number of columns
+// @function grid_cols
 fn grid_cols(l: *Lua) i32 {
     check_num_args(l, 1);
     l.checkType(1, ziglua.LuaType.light_userdata);
@@ -207,16 +240,29 @@ fn grid_cols(l: *Lua) i32 {
     return 1;
 }
 
+/// sets grid rotation.
+// users should use `grid:rotation` instead
+// @param md opaque pointer to monome device
+// @param rotation value to rotate
+// @see grid:rotation
+// @function grid_set_rotation
 fn grid_set_rotation(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
     const md = l.toUserdata(monome.Device, 1) catch unreachable;
     const rotation = @intCast(u8, l.checkInteger(2));
+    // TODO what does rotation want to be? in degrees?
     md.set_rotation(rotation);
     l.setTop(0);
     return 0;
 }
 
+/// enable tilt data.
+// users should use `grid:tilt` instead
+// @param md opaque pointer to monome device
+// @param sensor tilt sensor to enable
+// @see grid:tilt
+// @function grid_tilt_enable
 fn grid_tilt_enable(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
@@ -226,6 +272,12 @@ fn grid_tilt_enable(l: *Lua) i32 {
     return 0;
 }
 
+/// disable tilt data.
+// users should use `grid:tilt` instead
+// @param md opaque pointer to monome device
+// @param sensor tilt sensor to disable
+// @see grid:tilt
+// @function grid_tilt_disable
 fn grid_tilt_disable(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
@@ -235,6 +287,14 @@ fn grid_tilt_disable(l: *Lua) i32 {
     return 0;
 }
 
+/// sets arc led.
+// users should use `arc:led` instead
+// @param md opaque pointer to monome device
+// @param ring arc ring (1-based)
+// @param led arc led (1-based)
+// @param val led brightness (0-15)
+// @see arc:led
+// @function arc_set_led
 fn arc_set_led(l: *Lua) i32 {
     check_num_args(l, 4);
     l.checkType(1, ziglua.LuaType.light_userdata);
@@ -247,6 +307,12 @@ fn arc_set_led(l: *Lua) i32 {
     return 0;
 }
 
+/// sets all arc leds.
+// users should use `arc:all` instead
+// @param md opaque pointser to monome device
+// @param val led brightness (0-15)
+// @see arc:all
+// @function arc_all_led
 fn arc_all_led(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
@@ -257,6 +323,12 @@ fn arc_all_led(l: *Lua) i32 {
     return 0;
 }
 
+/// send dirty quads to monome device.
+// users should use `grid:refresh` or `arc:refresh` instead
+// @param md opaque pointer to monome device
+// @see arc:refresh
+// @see grid:refresh
+// @function monome_refresh
 fn monome_refresh(l: *Lua) i32 {
     check_num_args(l, 1);
     l.checkType(1, ziglua.LuaType.light_userdata);
@@ -266,6 +338,13 @@ fn monome_refresh(l: *Lua) i32 {
     return 0;
 }
 
+/// sets maximum led brightness.
+// users should use `grid:intensity` or `arc:intensity` instead
+// @param md opaque pointer to monome device
+// @param level maximum brightness level
+// @see arc:intensity
+// @see grid:intensity
+// @function monome_intensity
 fn monome_intensity(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
@@ -276,36 +355,62 @@ fn monome_intensity(l: *Lua) i32 {
     return 0;
 }
 
+/// refreshes the screen.
+// users should use `screen.redraw` instead
+// @see screen:redraw
+// @function screen_redraw
 fn screen_redraw(l: *Lua) i32 {
     check_num_args(l, 0);
     screen.redraw();
     return 0;
 }
 
+/// draws a single pixel.
+// users should use `screen.pixel` instead
+// @param x x-coordinate (1-based)
+// @param y y-coordinate (1-based)
+// @see screen:pixel
+// @function screen_pixel
 fn screen_pixel(l: *Lua) i32 {
     check_num_args(l, 2);
-    const x = @intCast(i32, l.checkInteger(1));
-    const y = @intCast(i32, l.checkInteger(2));
+    const x = @intCast(i32, l.checkInteger(1)) - 1;
+    const y = @intCast(i32, l.checkInteger(2)) - 1;
     screen.pixel(x, y);
     l.setTop(0);
     return 0;
 }
 
+/// draws a line.
+// users should use `screen.line` instead
+// @param ax initial x-coordinate (1-based)
+// @param ay initial y-coordinate (1-based)
+// @param bx terminal x-coordinate (1-based)
+// @param by terminal y-coordinate (1-based)
+// @see screen:line
+// @function screen_line
 fn screen_line(l: *Lua) i32 {
     check_num_args(l, 4);
-    const ax = @intCast(i32, l.checkInteger(1));
-    const ay = @intCast(i32, l.checkInteger(2));
-    const bx = @intCast(i32, l.checkInteger(3));
-    const by = @intCast(i32, l.checkInteger(4));
+    const ax = @intCast(i32, l.checkInteger(1)) - 1;
+    const ay = @intCast(i32, l.checkInteger(2)) - 1;
+    const bx = @intCast(i32, l.checkInteger(3)) - 1;
+    const by = @intCast(i32, l.checkInteger(4)) - 1;
     screen.line(ax, ay, bx, by);
     l.setTop(0);
     return 0;
 }
 
+/// draws a rectangle.
+// users should use `screen.rect` instead
+// @param x upper-left x-coordinate (1-based)
+// @param y upper-left x-coordinate (1-based)
+// @param w width in pixels
+// @param h height in pixels
+// @see screen:rect
+// @function screen_rect
 fn screen_rect(l: *Lua) i32 {
     check_num_args(l, 4);
-    const x = @intCast(i32, l.checkInteger(1));
-    const y = @intCast(i32, l.checkInteger(2));
+    const x = @intCast(i32, l.checkInteger(1)) - 1;
+    const y = @intCast(i32, l.checkInteger(2)) - 1;
     const w = @intCast(i32, l.checkInteger(3));
     const h = @intCast(i32, l.checkInteger(4));
     screen.rect(x, y, w, h);
@@ -313,10 +418,18 @@ fn screen_rect(l: *Lua) i32 {
     return 0;
 }
 
+/// draws a filled rectangle.
+// users should use `screen.rect` instead
+// @param x upper-left x-coordinate (1-based)
+// @param y upper-left x-coordinate (1-based)
+// @param w width in pixels
+// @param h height in pixels
+// @see screen:rect
+// @function screen_rect_fill
 fn screen_rect_fill(l: *Lua) i32 {
     check_num_args(l, 4);
-    const x = @intCast(i32, l.checkInteger(1));
-    const y = @intCast(i32, l.checkInteger(2));
+    const x = @intCast(i32, l.checkInteger(1)) - 1;
+    const y = @intCast(i32, l.checkInteger(2)) - 1;
     const w = @intCast(i32, l.checkInteger(3));
     const h = @intCast(i32, l.checkInteger(4));
     screen.rect_fill(x, y, w, h);
@@ -324,16 +437,31 @@ fn screen_rect_fill(l: *Lua) i32 {
     return 0;
 }
 
+/// draws text to the screen.
+// users should use `screen.text` instead
+// @param x upper-left x-coordinate (1-based)
+// @param y upper-left y-coordinate (1-based)
+// @param words text to draw to the screen
+// @see screen:text
+// @function screen_text
 fn screen_text(l: *Lua) i32 {
     check_num_args(l, 3);
-    const x = @intCast(i32, l.checkInteger(1));
-    const y = @intCast(i32, l.checkInteger(2));
+    const x = @intCast(i32, l.checkInteger(1)) - 1;
+    const y = @intCast(i32, l.checkInteger(2)) - 1;
     const words = l.checkString(3);
     screen.text(x, y, std.mem.span(words));
     l.setTop(0);
     return 0;
 }
 
+/// sets screen color.
+// users should use `screen.color` instead
+// @param r red value (0-255)
+// @param g green value (0-255)
+// @param b blue value (0-255)
+// @param a alpha value (0-255), defaults to 255
+// @see screen:color
+// @function screen_color
 fn screen_color(l: *Lua) i32 {
     check_num_args(l, 4);
     const r = @intCast(u8, l.checkInteger(1));
@@ -345,12 +473,24 @@ fn screen_color(l: *Lua) i32 {
     return 0;
 }
 
+/// clears the screen.
+// users should use `screen.clear` instead
+// @see screen:clear
+// @function screen_clear
 fn screen_clear(l: *Lua) i32 {
     check_num_args(l, 0);
     screen.clear();
     return 0;
 }
 
+/// starts a new metro.
+// users should use `metro:start` instead
+// @param idx metro id (1-36)
+// @param seconds float time at which to repeat
+// @param count stage at which to stop
+// @param stage stage at which to start
+// @see metro:start
+// @function metro_start
 fn metro_start(l: *Lua) i32 {
     check_num_args(l, 4);
     const idx = @intCast(u8, l.checkInteger(1) - 1);
@@ -362,6 +502,11 @@ fn metro_start(l: *Lua) i32 {
     return 0;
 }
 
+/// stops a metro.
+// users should use `metro:stop` instead
+// @param idx metro id (1-36)
+// @see metro:stop
+// @function metro_stop
 fn metro_stop(l: *Lua) i32 {
     check_num_args(l, 1);
     const idx = @intCast(u8, l.checkInteger(1) - 1);
@@ -370,6 +515,11 @@ fn metro_stop(l: *Lua) i32 {
     return 0;
 }
 
+/// set repetition time for a metro.
+// users can use the `time` field on a metro instead.
+// @param idx metro id (1-36)
+// @param seconds new period (float)
+// @function metro_set_time
 fn metro_set_time(l: *Lua) i32 {
     check_num_args(l, 2);
     const idx = @intCast(u8, l.checkInteger(1) - 1);
@@ -379,6 +529,8 @@ fn metro_set_time(l: *Lua) i32 {
     return 0;
 }
 
+/// resets lua VM.
+// @function reset_lvm
 fn reset_lvm(l: *Lua) i32 {
     check_num_args(l, 0);
     l.setTop(0);
