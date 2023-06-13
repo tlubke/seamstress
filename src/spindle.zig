@@ -152,7 +152,7 @@ fn osc_send(l: *Lua) i32 {
     defer allocator.free(msg);
     var i: usize = 1;
     while (i <= len) : (i += 1) {
-        l.pushNumber(@intToFloat(f64, i));
+        l.pushInteger(@intCast(c_longlong, i));
         _ = l.getTable(3);
         msg[i - 1] = switch (l.typeOf(-1)) {
             .nil => osc.Lo_Arg{ .Lo_Nil = false },
@@ -536,8 +536,20 @@ fn midi_write(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
     const dev = l.toUserdata(midi.Device, 1) catch unreachable;
-    const bytes = l.toBytes(2) catch unreachable;
-    dev.Output.write(bytes);
+    l.checkType(2, ziglua.LuaType.table);
+    const len = l.rawLen(2);
+    var i: c_longlong = 1;
+    var msg = allocator.allocSentinel(u8, @intCast(usize, len), 0) catch |err| {
+        if (err == error.OutOfMemory) std.debug.print("out of memory!\n", .{});
+        return 0;
+    };
+    while (i <= len) : (i += 1) {
+        l.pushInteger(i);
+        _ = l.getTable(2);
+        msg[@intCast(usize, i - 1)] = @intCast(u8, l.toInteger(-1) catch unreachable);
+    }
+    dev.Output.write(msg);
+    allocator.free(msg);
     l.setTop(0);
     return 0;
 }
