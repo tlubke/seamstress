@@ -1,3 +1,8 @@
+--- midi
+-- @module midi
+
+--- midi device (input or output)
+-- @type midi
 local Midi = {}
 Midi.__index = Midi
 
@@ -79,8 +84,21 @@ function Midi.new(name, is_input, id, dev)
   return d
 end
 
+--- callback executed when midi device is added
+-- @tparam dev midi midi device
+-- @tparam bool is_input true if input, false if output
+-- @function midi.add
 function Midi.add(dev, is_input) end
+
+--- callback executed when midi device is removed
+-- @tparam dev midi midi device
+-- @function midi.remove
 function Midi.remove(dev) end
+
+--- send midi out an output device
+-- @tparam midi self midi device
+-- @tparam table data to send
+-- @function midi:send
 function Midi:send(data)
   if self.is_input then
     error('cannot send from input!')
@@ -98,6 +116,7 @@ end
 -- @tparam integer note : note number
 -- @tparam integer vel : velocity
 -- @tparam integer ch : midi channel
+-- @function midi:note_on
 function Midi:note_on(note, vel, ch)
   self:send{type="note_on", note=note, vel=vel, ch=ch or 1}
 end
@@ -106,6 +125,7 @@ end
 -- @tparam integer note : note number
 -- @tparam integer vel : velocity
 -- @tparam integer ch : midi channel
+-- @function midi:note_off
 function Midi:note_off(note, vel, ch)
   self:send{type="note_off", note=note, vel=vel or 100, ch=ch or 1}
 end
@@ -114,6 +134,7 @@ end
 -- @tparam integer cc : cc number
 -- @tparam integer val : value
 -- @tparam integer ch : midi channel
+-- @function midi:cc
 function Midi:cc(cc, val, ch)
   self:send{type="cc", cc=cc, val=val, ch=ch or 1}
 end
@@ -121,6 +142,7 @@ end
 --- send midi pitchbend event.
 -- @tparam integer val : value
 -- @tparam integer ch : midi channel
+-- @function midi:pitchbend
 function Midi:pitchbend(val, ch)
   self:send{type="pitchbend", val=val, ch=ch or 1}
 end
@@ -129,6 +151,7 @@ end
 -- @tparam integer note : note number
 -- @tparam integer val : value
 -- @tparam integer ch : midi channel
+-- @function midi:key_pressure
 function Midi:key_pressure(note, val, ch)
   self:send{type="key_pressure", note=note, val=val, ch=ch or 1}
 end
@@ -136,6 +159,7 @@ end
 --- send midi channel pressure event.
 -- @tparam integer val : value
 -- @tparam integer ch : midi channel
+-- @function midi:channel_pressure
 function Midi:channel_pressure(val, ch)
   self:send{type="channel_pressure", val=val, ch=ch or 1}
 end
@@ -143,26 +167,31 @@ end
 --- send midi program change event.
 -- @tparam integer val : value
 -- @tparam integer ch : midi channel
+-- @function midi:program_change
 function Midi:program_change(val, ch)
   self:send{type="program_change", val=val, ch=ch or 1}
 end
 
 --- send midi start event.
+-- @function midi:start
 function Midi:start()
   self:send{type="start"}
 end
 
 --- send midi stop event.
+-- @function midi:stop
 function Midi:stop()
   self:send{type="stop"}
 end
 
 --- send midi continue event.
+-- @function midi:continue
 function Midi:continue()
   self:send{type="continue"}
 end
 
 --- send midi clock event.
+-- @function midi:clock
 function Midi:clock()
   self:send{type="clock"}
 end
@@ -170,21 +199,29 @@ end
 --- send midi song position event.
 -- @tparam integer lsb :
 -- @tparam integer msb :
+-- @function midi:song_position
 function Midi:song_position(lsb, msb)
   self:send{type="song_position", lsb=lsb, msb=msb}
 end
 
 --- send midi song select event.
 -- @tparam integer val : value
+-- @function midi:song_select
 function Midi:song_select(val)
   self:send{type="song_select", val=val}
 end
 
+--- connects to an input port
+-- @tparam[opt] integer n (1-16)
+-- @function midi.connect_input
 function Midi.connect_input(n)
 	local n = n or 1
   return Midi.vinports[n]
 end
 
+--- connects to an output port
+-- @tparam[opt] integer n (1-16)
+-- @function midi.connect_output
 function Midi.connect_output(n)
 	local n = n or 1
   return Midi.voutports[n]

@@ -532,6 +532,12 @@ fn metro_set_time(l: *Lua) i32 {
     return 0;
 }
 
+/// outputs midi data to device.
+// users should use `midi:send` instead
+// @param dev opaque pointer to midi device
+// @bytes table of small integers to write
+// @see midi:send
+// @function midi_write
 fn midi_write(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
