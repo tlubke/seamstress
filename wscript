@@ -13,6 +13,11 @@ def configure(ctx):
     ctx.find_program('zig', var='ZIG', mandatory=False)
 
     if ctx.env.DEST_OS == 'darwin':
+        ctx.env.INCLUDES_RTMIDI = ['/opt/homebrew/include']
+        ctx.env.LIB_RTMIDI = 'rtmidi'
+        ctx.env.LIBPATH_RTMIDI = '/opt/homebrew/lib'
+        ctx.env.LDFLAGS_RTMIDI = '-lrtmidi'
+        
         ctx.env.INCLUDES_LUA = ['/opt/homebrew/include', '/usr/local/include']
         ctx.env.LIB_LUA = 'lua'
         ctx.env.LIBPATH_LUA = ['/opt/homebrew/lib', '/usr/local/lib']
@@ -39,49 +44,46 @@ def configure(ctx):
         ctx.env.LDFLAGS_SDLTTF = '-lSDL2_ttf'
 
     ctx.check_cc(
-        define_name = "HAVE_LUA",
         mandatory = True,
         quote = 0,
         lib = "lua",
         use = "LUA",
-        uselib_store = "LUA",
         msg = "Checking for lua"
     )
     ctx.check_cc(
-        define_name = "HAVE_SDL",
         mandatory = True,
         quote = 0,
         lib = "SDL2",
         use = "SDL",
-        uselib_store = "SDL",
         msg = "Checking for sdl"
     )
     ctx.check_cc(
-        define_name = "HAVE_SDLTTF",
         mandatory = True,
         quote = 0,
         lib = "SDL2_ttf",
         use = "SDLTTF",
-        uselib_store = "SDLTTF",
         msg = "Checking for sdl_ttf"
     )
     ctx.check_cc(
-        define_name = "HAVE_LO",
         mandatory = True,
         quote = 0,
         lib = "lo",
         use = "LO",
-        uselib_store = "LO",
         msg = "Checking for lo"
     )
     ctx.check_cc(
-        define_name = "HAVE_MONOME",
         mandatory = True,
         quote = 0,
         lib = "monome",
         use = "MONOME",
-        uselib_store = "MONOME",
         msg = "Checking for libmonome"
+    )
+    ctx.check_cc(
+        mandatory = True,
+        quote = 0,
+        lib = "rtmidi",
+        use = "RTMIDI",
+        msg = "Checking for rtmidi"
     )
     return
 
