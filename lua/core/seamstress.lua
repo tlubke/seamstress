@@ -1,3 +1,5 @@
+--- startup file
+-- @script seamstress
 grid = require 'core/grid'
 arc = require 'core/arc'
 osc = require 'core/osc'
@@ -5,6 +7,7 @@ util = require 'lib/util'
 screen = require 'core/screen'
 metro = require 'core/metro'
 
+--- global init function to be overwritten in user scripts.
 init = function () end
 
 _seamstress.monome = {
@@ -24,6 +27,8 @@ _seamstress.monome = {
   end,
 }
 
+--- startup function; called by spindle to start the script.
+-- @tparam string script_file set by calling seamstress with `-s filename`
 _startup = function (script_file)
   require(script_file)
   init()

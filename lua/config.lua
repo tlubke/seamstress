@@ -1,6 +1,6 @@
--- seamstress configuration
-
+--- seamstress configuration
 -- add to package.path
+-- @script config.lua
 
 local home = os.getenv('HOME')
 local pwd = os.getenv('PWD')
@@ -12,9 +12,15 @@ local lib = seamstress .. '/lib/?.lua;'
 local luafiles = pwd .. '/?.lua;'
 local seamstressfiles = seamstress_home .. '/?.lua;'
 
+--- custom package.path setting for require.
+-- includes folders under `/usr/local/share/seamstress/lua`,
+-- as well as the current directory
+-- and `$HOME/seamstress`
 package.path = sys .. core .. lib .. luafiles .. seamstressfiles.. package.path
 
-path = {}
-path.home = home
-path.pwd = pwd
-path.seamstress = seamstress_home
+--- path object
+path = {
+  home = home, -- user home directory
+  pwd = pwd, -- directory from which seamstress was run
+  seamstress = seamstress_home -- defined to be `home .. '/seamstress'`
+}

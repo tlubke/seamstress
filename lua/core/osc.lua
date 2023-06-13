@@ -1,10 +1,22 @@
+--- osc
+-- @module osc
 local OSC = {}
 
 OSC.__index = OSC
 
+--- callback executed when seamstress receives OSC
+-- overwrite in user scripts
+-- @tparam string path an osc path `/like/this`
+-- @tparam table args arguments from the OSC message
+-- @tparam {host,port} from table containing sender information
+-- @function osc.event
 function OSC.event(path, args, from)
 end
 
+--- send OSC message
+-- @tparam[opt] {host,port} to address (both strings)
+-- @tparam string path an osc path `/like/this`
+-- @tparam[opt] table args an array of arguments to the OSC message
 function OSC.send(to, path, args)
   if not to then
     to = {"localhost", _seamstress.remote_port}
