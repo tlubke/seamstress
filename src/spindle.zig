@@ -535,7 +535,7 @@ fn metro_set_time(l: *Lua) i32 {
 /// outputs midi data to device.
 // users should use `midi:send` instead
 // @param dev opaque pointer to midi device
-// @bytes table of small integers to write
+// @param bytes table of small integers to write
 // @see midi:send
 // @function midi_write
 fn midi_write(l: *Lua) i32 {

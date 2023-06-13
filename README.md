@@ -6,10 +6,10 @@ currently beta software.
 
 ## installation
 
-requires `liblo`, `sdl2`, `sdl2_ttf`, `lua` and `libmonome`. on macOS do
+requires `liblo`, `sdl2`, `sdl2_ttf`, `rtmidi`, `lua` and `libmonome`. on macOS do
 
 ```
-brew install lua liblo libmonome sdl2 sdl2_ttf
+brew install lua liblo libmonome rtmidi sdl2 sdl2_ttf
 ```
 
 building from source requires [zig](https://github.com/ziglang/zig).
