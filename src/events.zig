@@ -117,7 +117,7 @@ const event_midi_add = struct {
     dev: *midi.Device = undefined,
     dev_type: midi.Dev_t = undefined,
     id: u32 = undefined,
-    name: []const u8 = undefined,
+    name: [:0]const u8 = undefined,
     // midi_add
 };
 

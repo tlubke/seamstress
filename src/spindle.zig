@@ -82,7 +82,7 @@ fn register_seamstress(name: [:0]const u8, f: ziglua.CFn) void {
 }
 
 pub fn deinit() void {
-    std.debug.print("shutting down lua vm\n", .{});
+    std.debug.print("\nshutting down lua vm\n", .{});
     lvm.deinit();
     if (save_buf) |s| allocator.free(s);
 }
@@ -697,12 +697,9 @@ pub fn metro_event(id: u8, stage: i64) !void {
     try docall(&lvm, 2, 0);
 }
 
-pub fn midi_add(dev: *midi.Device, dev_type: midi.Dev_t, id: u32, name: []const u8) !void {
+pub fn midi_add(dev: *midi.Device, dev_type: midi.Dev_t, id: u32, name: [:0]const u8) !void {
     try push_lua_func("midi", "add");
-    var name_copy = try allocator.allocSentinel(u8, name.len, 0);
-    defer allocator.free(name_copy);
-    std.mem.copyForwards(u8, name_copy, name);
-    _ = lvm.pushString(name_copy);
+    _ = lvm.pushString(name[0 .. name.len - 1 :0]);
     switch (dev_type) {
         midi.Dev_t.Input => lvm.pushBoolean(true),
         midi.Dev_t.Output => lvm.pushBoolean(false),

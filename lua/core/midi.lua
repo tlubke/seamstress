@@ -354,17 +354,27 @@ end
 -- update devices.
 function Midi.update_devices()
   -- reset vports for existing devices
-  for _,device in pairs(Midi.devices) do
+  for _,device in pairs(Midi.inputs) do
+    device.port = nil
+  end
+  for _,device in pairs(Midi.outputs) do
     device.port = nil
   end
 
   -- connect available devices to vports
   for i=1,16 do
-    Midi.vports[i].device = nil
+    Midi.vinports[i].device = nil
+    Midi.voutports[i].device = nil
 
-    for _, device in pairs(Midi.devices) do
-      if device.name == Midi.vports[i].name then
-        Midi.vports[i].device = device
+    for _, device in pairs(Midi.inputs) do
+      if device.name == Midi.vinports[i].name then
+        Midi.vinports[i].device = device
+        device.port = i
+      end
+    end
+    for _, device in pairs(Midi.outputs) do
+      if device.name == Midi.voutports[i].name then
+        Midi.voutports[i].device = device
         device.port = i
       end
     end
@@ -374,10 +384,15 @@ end
 
 function Midi.update_connected_state()
   for i=1,16 do
-    if Midi.vports[i].device ~= nil then
-      Midi.vports[i].connected = true
+    if Midi.vinports[i].device ~= nil then
+      Midi.vinports[i].connected = true
     else
-      Midi.vports[i].connected = false 
+      Midi.vinports[i].connected = false 
+    end
+    if Midi.voutports[i].device ~= nil then
+      Midi.voutports[i].connected = true
+    else
+      Midi.voutports[i].connected = false 
     end
   end
 end
@@ -413,12 +428,18 @@ _seamstress.midi = {
   event = function (id, timestamp, bytes)
     local d = Midi.inputs[id]
     if d ~= nil then
+      local bits = {}
+      local bit, i = nil, 1
+      repeat
+        bit = string.byte(bytes, i)
+        bits[i] = bit
+      until bit == nil
       if d.event ~= nil then
-        d.event(timestamp, bytes)
+        d.event(timestamp, bits)
       end
       if d.port then
         if Midi.vinports[d.port].event then
-          Midi.vinports[d.port].event(timestamp, bytes)
+          Midi.vinports[d.port].event(timestamp, bits)
         end
       end
     else
