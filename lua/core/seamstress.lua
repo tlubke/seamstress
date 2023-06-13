@@ -7,6 +7,7 @@ util = require 'lib/util'
 screen = require 'core/screen'
 metro = require 'core/metro'
 midi = require 'core/midi'
+clock = require 'core/clock'
 
 --- global init function to be overwritten in user scripts.
 init = function () end

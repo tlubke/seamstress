@@ -3,10 +3,11 @@ const spindle = @import("spindle.zig");
 const osc = @import("osc.zig");
 const monome = @import("monome.zig");
 const screen = @import("screen.zig");
+const clock = @import("clock.zig");
 const midi = @import("midi.zig");
 const c = std.c;
 
-pub const Event = enum(u4) {
+pub const Event = enum {
     // list of event types
     Quit,
     Exec_Code_Line,
@@ -24,6 +25,8 @@ pub const Event = enum(u4) {
     MIDI_Add,
     MIDI_Remove,
     MIDI,
+    Clock_Resume,
+    Clock_Transport,
 };
 
 pub const Data = union(Event) {
@@ -43,6 +46,8 @@ pub const Data = union(Event) {
     MIDI_Add: event_midi_add,
     MIDI_Remove: event_midi_remove,
     MIDI: event_midi,
+    Clock_Resume: event_resume,
+    Clock_Transport: event_transport,
     // event data struct
 };
 
@@ -132,6 +137,16 @@ const event_midi = struct {
     timestamp: f64 = undefined,
     message: []const u8 = undefined,
     // midi
+};
+
+const event_resume = struct {
+    id: u8 = undefined,
+    // resume
+};
+
+const event_transport = struct {
+    transport: clock.Transport = undefined,
+    // transport event
 };
 
 var allocator: std.mem.Allocator = undefined;
@@ -225,6 +240,8 @@ pub fn new(event_type: Event) !*Data {
         Event.MIDI_Add => Data{ .MIDI_Add = event_midi_add{} },
         Event.MIDI_Remove => Data{ .MIDI_Remove = event_midi_remove{} },
         Event.MIDI => Data{ .MIDI = event_midi{} },
+        Event.Clock_Resume => Data{ .Clock_Resume = event_resume{} },
+        Event.Clock_Transport => Data{ .Clock_Transport = event_transport{} },
     };
     return event;
 }
@@ -337,6 +354,12 @@ fn handle(event: *Data) !void {
         },
         Event.MIDI => {
             try spindle.midi_event(event.MIDI.id, event.MIDI.timestamp, event.MIDI.message);
+        },
+        Event.Clock_Resume => {
+            try spindle.resume_clock(event.Clock_Resume.id);
+        },
+        Event.Clock_Transport => {
+            try spindle.clock_transport(event.Clock_Transport.transport);
         },
     }
     free(event);

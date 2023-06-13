@@ -4,6 +4,7 @@ const args = @import("args.zig");
 const spindle = @import("spindle.zig");
 const events = @import("events.zig");
 const metros = @import("metros.zig");
+const clocks = @import("clock.zig");
 const dev_monitor = switch (builtin.target.os.tag) {
     .linux => @import("dev_monitor_linux.zig"),
     else => @import("dev_monitor_macos.zig"),
@@ -43,6 +44,10 @@ pub fn main() !void {
     std.debug.print("init metros\n", .{});
     try metros.init(allocator);
     defer metros.deinit();
+
+    std.debug.print("init clocks\n", .{});
+    try clocks.init(allocator);
+    defer clocks.deinit();
 
     std.debug.print("init spindle\n", .{});
     try spindle.init(config, allocator);
