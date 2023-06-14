@@ -30,15 +30,20 @@ pub fn build(b: *std.Build) void {
     // step when running `zig build`).
     b.installArtifact(exe);
 
-    exe.addIncludePath("/opt/homebrew/include");
-    exe.addLibraryPath("/opt/homebrew/lib");
+    if (target.isDarwin()) {
+        exe.addIncludePath("/opt/homebrew/include");
+        exe.addLibraryPath("/opt/homebrew/lib");
+        exe.linkFramework("CoreFoundation");
+        exe.linkFramework("IOKit");
+    }
+    if (target.isLinux()) {
+        exe.linkSystemLibrary("dns_sd");
+    }
     exe.linkSystemLibrary("LIBLO");
     exe.linkSystemLibrary("monome");
     exe.linkSystemLibrary("SDL2");
     exe.linkSystemLibrary("SDL2_ttf");
     exe.linkSystemLibrary("rtmidi");
-    exe.linkFramework("CoreFoundation");
-    exe.linkFramework("IOKit");
     exe.addModule("ziglua", ziglua.compileAndCreateModule(b, exe, .{}));
     // This *creates* a Run step in the build graph, to be executed when another
     // step is evaluated that depends on it. The next line below will establish
