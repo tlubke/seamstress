@@ -13,6 +13,8 @@ var id_counter: u32 = 0;
 
 pub const Dev_t = enum { Input, Output };
 
+const RtMidiPrefix = "seamstress";
+
 pub const Device = union(Dev_t) {
     const input_dev = struct {
         id: u32,
@@ -166,7 +168,7 @@ pub fn init(alloc_pointer: std.mem.Allocator) !void {
     allocator = alloc_pointer;
     midi_in = c.rtmidi_in_create( //
         c.RTMIDI_API_UNSPECIFIED, //
-        "seamstress", 1024) orelse return error.Fail;
+        RtMidiPrefix, 1024) orelse return error.Fail;
     var in_name = try std.fmt.allocPrintZ(allocator, "{s}", .{"seamstress_in"});
     var dev = try allocator.create(Device);
     dev.* = Device{
@@ -185,7 +187,7 @@ pub fn init(alloc_pointer: std.mem.Allocator) !void {
 
     midi_out = c.rtmidi_out_create( //
         c.RTMIDI_API_UNSPECIFIED, //
-        "seamstress") orelse return error.Fail;
+        RtMidiPrefix) orelse return error.Fail;
     var out_name = try std.fmt.allocPrintZ(allocator, "{s}", .{"seamstress_out"});
     dev = try allocator.create(Device);
     dev.* = Device{
@@ -203,6 +205,16 @@ pub fn init(alloc_pointer: std.mem.Allocator) !void {
     thread = try std.Thread.spawn(.{}, main_loop, .{});
 }
 
+// NB: on Linux, RtMidi keeps on reanouncing registered devices w/ the added `RtMidiPrefix`
+// this function allows retecting if a device name has this prefix (and thus is already registered)
+fn is_device_name_rt_midi_prefixed(src: []const u8) bool {
+    const prefix = RtMidiPrefix ++ ":";
+    if (src.len > prefix.len and std.mem.eql(u8, prefix, src[0..prefix.len])) {
+        return true;
+    }
+    return false;
+}
+
 fn main_loop() !void {
     while (!quit) {
         const in_count = c.rtmidi_get_port_count(midi_in);
@@ -214,7 +226,8 @@ fn main_loop() !void {
                 var buf = try allocator.alloc(u8, @intCast(usize, len));
                 defer allocator.free(buf);
                 _ = c.rtmidi_get_port_name(midi_in, i, buf.ptr, &len);
-                if (!in_list.find(buf)) {
+                if (!is_device_name_rt_midi_prefixed(buf) and !in_list.find(buf)) {
+                    std.debug.print("found new IN: {s} \n", .{buf});
                     var dev = try create(Dev_t.Input, i, buf);
                     try in_list.add(dev);
                     var event = try events.new(events.Event.MIDI_Add);
@@ -237,7 +250,8 @@ fn main_loop() !void {
                 var buf = try allocator.alloc(u8, @intCast(usize, len));
                 defer allocator.free(buf);
                 _ = c.rtmidi_get_port_name(midi_out, i, buf.ptr, &len);
-                if (!out_list.find(buf)) {
+                if (!is_device_name_rt_midi_prefixed(buf) and !out_list.find(buf)) {
+                    std.debug.print("found new OUT: {s}\n", .{buf});
                     var dev = try create(Dev_t.Output, i, buf);
                     try out_list.add(dev);
                     var event = try events.new(events.Event.MIDI_Add);
@@ -259,9 +273,9 @@ fn create(dev_type: Dev_t, port_number: c_uint, name: []const u8) !*Device {
     var ptr = switch (dev_type) {
         Dev_t.Input => c.rtmidi_in_create( //
             c.RTMIDI_API_UNSPECIFIED, //
-            "seamstress", 1024) orelse return error.Fail,
+            RtMidiPrefix, 1024) orelse return error.Fail,
         Dev_t.Output => c.rtmidi_out_create( //
-            c.RTMIDI_API_UNSPECIFIED, "seamstress") orelse return error.Fail,
+            c.RTMIDI_API_UNSPECIFIED, RtMidiPrefix) orelse return error.Fail,
     };
     var c_name = try allocator.allocSentinel(u8, name.len, 0);
     std.mem.copyForwards(u8, c_name, name);
