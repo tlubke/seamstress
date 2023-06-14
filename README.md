@@ -12,7 +12,7 @@ requires `liblo`, `sdl2`, `sdl2_ttf`, `rtmidi`, `lua` and `libmonome`. on macOS 
 brew install lua liblo libmonome rtmidi sdl2 sdl2_ttf
 ```
 
-building from source requires [zig](https://github.com/ziglang/zig).
+building from source requires the master build of [zig](https://github.com/ziglang/zig).
 download a binary from [here](https://ziglang.org/download/) and add it to your PATH.
 without zig installed, the following commands will instead attempt
 to install the provided binary (which is for M1 mac); 
@@ -35,6 +35,14 @@ invoke `seamstress` from the terminal.
 by default seamstress looks for and runs a file called `script.lua`
 in either the current directory or in `~/seamstress/`.
 this behavior can be overridden, see `seamstress -h` for details.
+
+## docs
+
+the lua API is documented [here](https://ryleealanza.org/assets/doc/index.html).
+to regenerate docs, you'll need [LDoc](https://github.com/lunarmodules/ldoc),
+which requires Penlight.
+with both installed, running `ldoc .` in the base directory of seamstress will
+regenerate documentation.
 
 ## acknowledgments
 
