@@ -134,16 +134,12 @@ const List = struct {
     fn add(self: *List, dev: *Device) !void {
         var new_node = try allocator.create(Node);
         new_node.* = Node{ .next = null, .prev = null, .dev = dev };
-        var node = self.head;
-        while (node != null and node.?.next != null) {
-            node = node.?.next;
-        }
-        if (node == null) {
+        if (self.tail) |n| {
+            n.next = new_node;
+            new_node.prev = n;
+        } else {
             std.debug.assert(self.size == 0);
             self.head = new_node;
-        } else {
-            node.?.next = new_node;
-            new_node.prev = node.?;
         }
         self.tail = new_node;
         self.size += 1;

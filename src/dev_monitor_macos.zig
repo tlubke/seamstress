@@ -126,4 +126,5 @@ pub fn deinit() void {
     _ = c.IONotificationPortDestroy(state.notify_add);
     _ = c.IONotificationPortDestroy(state.notify_destroy);
     allocator.destroy(state);
+    dev.deinit();
 }
