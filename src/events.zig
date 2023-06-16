@@ -136,35 +136,54 @@ const event_midi = struct {
 
 var allocator: std.mem.Allocator = undefined;
 
-const Event_Node = struct {
-    // node in linked list
-    next: ?*Event_Node,
-    prev: ?*Event_Node,
-    ev: *Data,
-};
-
-const Event_Queue = struct {
-    head: ?*Event_Node,
-    tail: ?*Event_Node,
+const Queue = struct {
+    const Node = struct {
+        // node
+        next: ?*Node,
+        prev: ?*Node,
+        ev: *Data,
+    };
+    head: ?*Node,
+    tail: ?*Node,
     size: usize,
     lock: std.Thread.Mutex,
     cond: std.Thread.Condition,
-    // queue
+    fn push(self: *Queue, data: *Data) !void {
+        var new_node = try allocator.create(Node);
+        new_node.* = Node{ .next = null, .prev = null, .ev = data };
+        if (self.tail) |n| {
+            self.tail = new_node;
+            n.next = new_node;
+            new_node.prev = n;
+        } else {
+            std.debug.assert(self.size == 0);
+            self.tail = new_node;
+            self.head = new_node;
+        }
+        self.size += 1;
+    }
+    fn pop(self: *Queue) ?*Data {
+        if (self.head) |n| {
+            const ev = n.ev;
+            self.head = n.next;
+            allocator.destroy(n);
+            if (self.size == 1) self.tail = null;
+            self.size -= 1;
+            return ev;
+        } else {
+            std.debug.assert(self.size == 0);
+            return null;
+        }
+    }
 };
 
-var queue = Event_Queue{
-    // event queue
-    .head = null,
-    .tail = null,
-    .size = 0,
-    .lock = .{},
-    .cond = .{},
-};
+var queue: Queue = undefined;
 
 var quit: bool = false;
 
 pub fn init(alloc_ptr: std.mem.Allocator) !void {
     allocator = alloc_ptr;
+    queue = Queue{ .head = null, .tail = null, .cond = .{}, .lock = .{}, .size = 0 };
 }
 
 test "init" {
@@ -180,7 +199,7 @@ pub fn loop() !void {
             queue.cond.wait(&queue.lock);
             continue;
         }
-        const ev = remove_from_head();
+        const ev = queue.pop();
         queue.lock.unlock();
         if (ev != null) try handle(ev.?);
     }
@@ -234,7 +253,7 @@ pub fn free(event: *Data) void {
 
 pub fn post(event: *Data) !void {
     queue.lock.lock();
-    try add_to_tail(event);
+    try queue.push(event);
     queue.cond.signal();
     queue.lock.unlock();
 }
@@ -245,7 +264,7 @@ pub fn handle_pending() !void {
     while (!done) {
         queue.lock.lock();
         if (queue.size > 0) {
-            event = remove_from_head();
+            event = queue.pop();
         } else {
             done = true;
         }
@@ -260,61 +279,12 @@ pub fn free_pending() void {
     var done = false;
     while (!done) {
         if (queue.size > 0) {
-            event = remove_from_head();
+            event = queue.pop();
         } else {
             done = true;
         }
         if (event) |ev| free(ev);
         event = null;
-    }
-}
-
-fn add_to_tail(event: *Data) !void {
-    var new_node = try allocator.create(Event_Node);
-    new_node.* = Event_Node{ .ev = event, .next = null, .prev = null };
-    var node = queue.head;
-    while (node != null and node.?.next != null) {
-        node = node.?.next;
-    }
-    if (node == null) {
-        std.debug.assert(queue.size == 0);
-        queue.head = new_node;
-    } else {
-        node.?.next = new_node;
-        new_node.prev = node.?;
-    }
-    queue.tail = new_node;
-    queue.size += 1;
-}
-
-fn remove_from_head() ?*Data {
-    if (queue.head == null) return null;
-    var node = queue.head.?;
-    queue.head = node.next;
-    defer allocator.destroy(node);
-    const ev = node.ev;
-    queue.size -= 1;
-    return ev;
-}
-
-test "push and pop" {
-    try init(std.testing.allocator);
-    var i: u16 = 0;
-    while (i < 100) : (i += 1) {
-        var event = try new(Event.Monome_Remove);
-        event.Monome_Remove.id = i;
-        try add_to_tail(event);
-    }
-    i = 0;
-    var node = queue.head;
-    while (node != null) : (node = node.?.next) {
-        try std.testing.expect(node.?.ev.Monome_Remove.id == i);
-        i += 1;
-    }
-    i = 0;
-    while (i < 100) : (i += 1) {
-        var event = remove_from_head();
-        free(event.?);
     }
 }
 

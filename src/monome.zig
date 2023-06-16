@@ -10,6 +10,10 @@ pub fn init(alloc_pointer: std.mem.Allocator) void {
     allocator = alloc_pointer;
 }
 
+pub fn deinit() void {
+    while (list.pop_and_deinit()) {}
+}
+
 const Monome_List = struct {
     const Node = struct {
         next: ?*Node,
@@ -20,6 +24,19 @@ const Monome_List = struct {
     head: ?*Node,
     tail: ?*Node,
     size: usize,
+    fn pop_and_deinit(self: *Monome_List) bool {
+        if (self.head) |n| {
+            self.head = n.next;
+            const dev = n.dev;
+            dev.deinit();
+            allocator.destroy(n);
+            self.size -= 1;
+            return true;
+        } else {
+            std.debug.assert(self.size == 0);
+            return false;
+        }
+    }
     fn search(self: *Monome_List, path: []const u8) ?*Node {
         var node = self.head;
         while (node) |n| {
@@ -33,16 +50,12 @@ const Monome_List = struct {
     fn add(self: *Monome_List, dev: *Device, path: []const u8) !*events.Data {
         var new_node = try allocator.create(Node);
         new_node.* = Node{ .dev = dev, .path = path, .next = null, .prev = null };
-        var node = self.head;
-        while (node != null and node.?.next != null) {
-            node = node.?.next;
-        }
-        if (node == null) {
+        if (self.tail) |n| {
+            n.next = new_node;
+            new_node.prev = n;
+        } else {
             std.debug.assert(self.size == 0);
             self.head = new_node;
-        } else {
-            node.?.next = new_node;
-            new_node.prev = node.?;
         }
         self.tail = new_node;
         self.size += 1;
@@ -158,9 +171,7 @@ pub const Device = struct {
         self.lock.unlock();
         self.thread.join();
         c.monome_close(self.m_dev);
-        allocator.free(self.name);
         allocator.free(self.path);
-        allocator.free(self.serial);
         allocator.destroy(self);
     }
     pub fn set_rotation(self: *Device, rotation: u8) void {
@@ -291,14 +302,11 @@ fn handle_delta(e: [*c]const c.monome_event_t, ptr: ?*anyopaque) callconv(.C) vo
 }
 
 fn loop(self: *Device, monome: *c.struct_monome) void {
-    while (true) {
-        self.lock.lock();
-        if (self.quit) {
-            self.lock.unlock();
-            break;
+    while (!self.quit) {
+        switch (c.monome_event_handle_next(monome)) {
+            1 => continue,
+            0 => std.time.sleep(1000),
+            else => self.quit = true,
         }
-        self.lock.unlock();
-        while (c.monome_event_handle_next(monome) != 0) {}
-        std.os.nanosleep(0, 1000);
     }
 }
