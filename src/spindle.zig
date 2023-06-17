@@ -725,7 +725,7 @@ pub fn monome_remove(id: usize) !void {
     try docall(&lvm, 1, 0);
 }
 
-pub fn grid_key(id: usize, x: u32, y: u32, state: i2) !void {
+pub fn grid_key(id: usize, x: u32, y: u32, state: u8) !void {
     try push_lua_func("grid", "key");
     lvm.pushInteger(@intCast(i64, id + 1));
     lvm.pushInteger(x + 1);
@@ -752,7 +752,7 @@ pub fn arc_delta(id: usize, ring: u32, delta: i32) !void {
     try docall(&lvm, 3, 0);
 }
 
-pub fn arc_key(id: usize, ring: u32, state: i2) !void {
+pub fn arc_key(id: usize, ring: u32, state: u8) !void {
     try push_lua_func("arc", "delta");
     lvm.pushInteger(@intCast(i64, id + 1));
     lvm.pushInteger(ring + 1);

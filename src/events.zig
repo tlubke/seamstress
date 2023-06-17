@@ -5,7 +5,6 @@ const monome = @import("monome.zig");
 const screen = @import("screen.zig");
 const clock = @import("clock.zig");
 const midi = @import("midi.zig");
-const c = std.c;
 
 pub const Event = enum {
     // list of event types
@@ -78,7 +77,7 @@ const event_grid_key = struct {
     id: usize = undefined,
     x: u32 = undefined,
     y: u32 = undefined,
-    state: i2 = undefined,
+    state: u8 = undefined,
     // grid_key
 };
 
@@ -101,7 +100,7 @@ const event_arc_delta = struct {
 const event_arc_key = struct {
     id: usize = undefined,
     ring: u32 = undefined,
-    state: i2 = undefined,
+    state: u8 = undefined,
     // arc_key
 };
 
@@ -158,36 +157,73 @@ const Queue = struct {
         prev: ?*Node,
         ev: *Data,
     };
-    head: ?*Node,
-    tail: ?*Node,
-    size: usize,
+    read_head: ?*Node,
+    read_tail: ?*Node,
+    read_size: usize,
+    write_head: ?*Node,
+    write_tail: ?*Node,
+    write_size: usize,
     lock: std.Thread.Mutex,
     cond: std.Thread.Condition,
-    fn push(self: *Queue, data: *Data) !void {
-        var new_node = try allocator.create(Node);
-        new_node.* = Node{ .next = null, .prev = null, .ev = data };
-        if (self.tail) |n| {
-            self.tail = new_node;
+    inline fn get_new(self: *Queue) *Node {
+        var node = self.write_head orelse {
+            @setCold(true);
+            std.debug.assert(self.write_size == 0);
+            std.debug.print("no nodes free!\n", .{});
+            unreachable;
+        };
+        self.write_head = node.next;
+        node.next = null;
+        node.prev = null;
+        self.write_size -= 1;
+        return node;
+    }
+    inline fn return_to_pool(self: *Queue, node: *Node) void {
+        if (self.write_tail) |n| {
+            self.write_tail = node;
+            n.next = node;
+            node.prev = n;
+        } else {
+            @setCold(true);
+            std.debug.assert(self.write_size == 0);
+            self.write_head = node;
+            self.write_tail = node;
+        }
+        self.write_size += 1;
+    }
+    fn push(self: *Queue, data: Data) void {
+        var new_node = self.get_new();
+        new_node.ev.* = data;
+        if (self.read_tail) |n| {
+            self.read_tail = new_node;
             n.next = new_node;
             new_node.prev = n;
         } else {
-            std.debug.assert(self.size == 0);
-            self.tail = new_node;
-            self.head = new_node;
+            std.debug.assert(self.read_size == 0);
+            self.read_tail = new_node;
+            self.read_head = new_node;
         }
-        self.size += 1;
+        self.read_size += 1;
     }
     fn pop(self: *Queue) ?*Data {
-        if (self.head) |n| {
+        if (self.read_head) |n| {
             const ev = n.ev;
-            self.head = n.next;
-            allocator.destroy(n);
-            if (self.size == 1) self.tail = null;
-            self.size -= 1;
+            self.read_head = n.next;
+            self.return_to_pool(n);
+            if (self.read_size == 1) self.read_tail = null;
+            self.read_size -= 1;
             return ev;
         } else {
-            std.debug.assert(self.size == 0);
+            std.debug.assert(self.read_size == 0);
             return null;
+        }
+    }
+    fn deinit(self: *Queue) void {
+        var node = self.write_head;
+        while (node) |n| {
+            node = n.next;
+            allocator.destroy(n.ev);
+            allocator.destroy(n);
         }
     }
 };
@@ -198,18 +234,32 @@ var quit: bool = false;
 
 pub fn init(alloc_ptr: std.mem.Allocator) !void {
     allocator = alloc_ptr;
-    queue = Queue{ .head = null, .tail = null, .cond = .{}, .lock = .{}, .size = 0 };
-}
-
-test "init" {
-    try init(std.testing.allocator);
+    queue = Queue{
+        // queue
+        .read_head = null,
+        .read_tail = null,
+        .read_size = 0,
+        .write_head = null,
+        .write_tail = null,
+        .write_size = 0,
+        .cond = .{},
+        .lock = .{},
+    };
+    var i: u16 = 0;
+    while (i < 1000) : (i += 1) {
+        var node = try allocator.create(Queue.Node);
+        var data = try allocator.create(Data);
+        data.* = undefined;
+        node.* = Queue.Node{ .ev = data, .next = null, .prev = null };
+        queue.return_to_pool(node);
+    }
 }
 
 pub fn loop() !void {
     std.debug.print("> ", .{});
     while (!quit) {
         queue.lock.lock();
-        while (queue.size == 0) {
+        while (queue.read_size == 0) {
             if (quit) break;
             queue.cond.wait(&queue.lock);
             continue;
@@ -220,57 +270,30 @@ pub fn loop() !void {
     }
 }
 
-pub fn new(event_type: Event) !*Data {
-    // TODO: surely there's a metaprogramming solution to this nonsense
-    var event = try allocator.create(Data);
-    event.* = switch (event_type) {
-        Event.Quit => Data{ .Quit = {} },
-        Event.Exec_Code_Line => Data{ .Exec_Code_Line = event_exec_code_line{} },
-        Event.Reset_LVM => Data{ .Reset_LVM = {} },
-        Event.OSC => Data{ .OSC = event_osc{} },
-        Event.Monome_Add => Data{ .Monome_Add = event_monome_add{} },
-        Event.Monome_Remove => Data{ .Monome_Remove = event_monome_remove{} },
-        Event.Grid_Key => Data{ .Grid_Key = event_grid_key{} },
-        Event.Grid_Tilt => Data{ .Grid_Tilt = event_grid_tilt{} },
-        Event.Arc_Encoder => Data{ .Arc_Encoder = event_arc_delta{} },
-        Event.Arc_Key => Data{ .Arc_Key = event_arc_key{} },
-        Event.Screen_Key => Data{ .Screen_Key = event_screen_key{} },
-        Event.Screen_Check => Data{ .Screen_Check = {} },
-        Event.Metro => Data{ .Metro = event_metro{} },
-        Event.MIDI_Add => Data{ .MIDI_Add = event_midi_add{} },
-        Event.MIDI_Remove => Data{ .MIDI_Remove = event_midi_remove{} },
-        Event.MIDI => Data{ .MIDI = event_midi{} },
-        Event.Clock_Resume => Data{ .Clock_Resume = event_resume{} },
-        Event.Clock_Transport => Data{ .Clock_Transport = event_transport{} },
-    };
-    return event;
-}
-
 pub fn free(event: *Data) void {
     switch (event.*) {
-        Event.OSC => |e| {
+        .OSC => |e| {
             allocator.free(e.path);
             allocator.free(e.from_host);
             allocator.free(e.from_port);
             allocator.free(e.msg);
         },
-        Event.Exec_Code_Line => |e| {
+        .Exec_Code_Line => |e| {
             allocator.free(e.line);
         },
-        Event.MIDI_Add => |e| {
+        .MIDI_Add => |e| {
             allocator.free(e.name);
         },
-        Event.MIDI => |e| {
+        .MIDI => |e| {
             allocator.free(e.message);
         },
         else => {},
     }
-    allocator.destroy(event);
 }
 
-pub fn post(event: *Data) !void {
+pub fn post(event: Data) void {
     queue.lock.lock();
-    try queue.push(event);
+    queue.push(event);
     queue.cond.signal();
     queue.lock.unlock();
 }
@@ -280,7 +303,7 @@ pub fn handle_pending() !void {
     var done = false;
     while (!done) {
         queue.lock.lock();
-        if (queue.size > 0) {
+        if (queue.read_size > 0) {
             event = queue.pop();
         } else {
             done = true;
@@ -291,11 +314,16 @@ pub fn handle_pending() !void {
     }
 }
 
+pub fn deinit() void {
+    free_pending();
+    queue.deinit();
+}
+
 pub fn free_pending() void {
     var event: ?*Data = null;
     var done = false;
     while (!done) {
-        if (queue.size > 0) {
+        if (queue.read_size > 0) {
             event = queue.pop();
         } else {
             done = true;
@@ -307,60 +335,24 @@ pub fn free_pending() void {
 
 fn handle(event: *Data) !void {
     switch (event.*) {
-        Event.Quit => {
-            quit = true;
-        },
-        Event.Exec_Code_Line => {
-            try spindle.exec_code_line(event.Exec_Code_Line.line);
-        },
-        Event.OSC => {
-            try spindle.osc_event(event.OSC.from_host, event.OSC.from_port, event.OSC.path, event.OSC.msg);
-        },
-        Event.Reset_LVM => {
-            try spindle.reset_lua();
-        },
-        Event.Monome_Add => {
-            try spindle.monome_add(event.Monome_Add.dev);
-        },
-        Event.Monome_Remove => {
-            try spindle.monome_remove(event.Monome_Remove.id);
-        },
-        Event.Grid_Key => {
-            try spindle.grid_key(event.Grid_Key.id, event.Grid_Key.x, event.Grid_Key.y, event.Grid_Key.state);
-        },
-        Event.Grid_Tilt => {
-            try spindle.grid_tilt(event.Grid_Tilt.id, event.Grid_Tilt.sensor, event.Grid_Tilt.x, event.Grid_Tilt.y, event.Grid_Tilt.z);
-        },
-        Event.Arc_Encoder => {
-            try spindle.arc_delta(event.Arc_Encoder.id, event.Arc_Encoder.ring, event.Arc_Encoder.delta);
-        },
-        Event.Arc_Key => {
-            try spindle.arc_key(event.Arc_Key.id, event.Arc_Key.ring, event.Arc_Key.state);
-        },
-        Event.Screen_Key => {
-            try spindle.screen_key(event.Screen_Key.scancode);
-        },
-        Event.Screen_Check => {
-            try screen.check();
-        },
-        Event.Metro => {
-            try spindle.metro_event(event.Metro.id, event.Metro.stage);
-        },
-        Event.MIDI_Add => {
-            try spindle.midi_add(event.MIDI_Add.dev, event.MIDI_Add.dev_type, event.MIDI_Add.id, event.MIDI_Add.name);
-        },
-        Event.MIDI_Remove => {
-            try spindle.midi_remove(event.MIDI_Remove.dev_type, event.MIDI_Remove.id);
-        },
-        Event.MIDI => {
-            try spindle.midi_event(event.MIDI.id, event.MIDI.timestamp, event.MIDI.message);
-        },
-        Event.Clock_Resume => {
-            try spindle.resume_clock(event.Clock_Resume.id);
-        },
-        Event.Clock_Transport => {
-            try spindle.clock_transport(event.Clock_Transport.transport);
-        },
+        .Quit => quit = true,
+        .Exec_Code_Line => |e| try spindle.exec_code_line(e.line),
+        .OSC => |e| try spindle.osc_event(e.from_host, e.from_port, e.path, e.msg),
+        .Reset_LVM => try spindle.reset_lua(),
+        .Monome_Add => |e| try spindle.monome_add(e.dev),
+        .Monome_Remove => |e| try spindle.monome_remove(e.id),
+        .Grid_Key => |e| try spindle.grid_key(e.id, e.x, e.y, e.state),
+        .Grid_Tilt => |e| try spindle.grid_tilt(e.id, e.sensor, e.x, e.y, e.z),
+        .Arc_Encoder => |e| try spindle.arc_delta(e.id, e.ring, e.delta),
+        .Arc_Key => |e| try spindle.arc_key(e.id, e.ring, e.state),
+        .Screen_Key => |e| try spindle.screen_key(e.scancode),
+        .Screen_Check => screen.check(),
+        .Metro => |e| try spindle.metro_event(e.id, e.stage),
+        .MIDI_Add => |e| try spindle.midi_add(e.dev, e.dev_type, e.id, e.name),
+        .MIDI_Remove => |e| try spindle.midi_remove(e.dev_type, e.id),
+        .MIDI => |e| try spindle.midi_event(e.id, e.timestamp, e.message),
+        .Clock_Resume => |e| try spindle.resume_clock(e.id),
+        .Clock_Transport => |e| try spindle.clock_transport(e.transport),
     }
     free(event);
 }

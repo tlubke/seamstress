@@ -41,9 +41,8 @@ fn input_run() !void {
             quit = true;
             continue;
         }
-        var event = try events.new(events.Event.Exec_Code_Line);
-        event.Exec_Code_Line.line = line;
-        try events.post(event);
+        const event = .{ .Exec_Code_Line = .{ .line = line } };
+        events.post(event);
     }
-    try events.post(try events.new(events.Event.Quit));
+    events.post(.{ .Quit = {} });
 }

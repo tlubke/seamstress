@@ -35,11 +35,8 @@ pub const Device = union(Dev_t) {
             if (len == 0) return false;
             var line = try allocator.alloc(u8, len);
             std.mem.copyForwards(u8, line, self.buf[0..len]);
-            var event = try events.new(events.Event.MIDI);
-            event.MIDI.message = line;
-            event.MIDI.timestamp = timestamp;
-            event.MIDI.id = self.id;
-            try events.post(event);
+            const event = .{ .MIDI = .{ .message = line, .timestamp = timestamp, .id = self.id } };
+            events.post(event);
             return true;
         }
         fn loop(self: *input_dev) !void {
@@ -47,7 +44,7 @@ pub const Device = union(Dev_t) {
                 const did_read = try self.read();
                 if (!did_read) std.time.sleep(std.time.ns_per_us * 300);
             }
-            try Device.deinit(Dev_t.Input, self.id);
+            Device.deinit(Dev_t.Input, self.id);
         }
     };
     const output_dev = struct {
@@ -59,23 +56,21 @@ pub const Device = union(Dev_t) {
             if (self.ptr.*.ok != true) {
                 const err = std.mem.span(self.ptr.*.msg);
                 std.debug.print("error in device {s}: {s}\n", .{ self.name, err });
-                Device.deinit(Dev_t.Output, self.id) catch unreachable;
+                Device.deinit(Dev_t.Output, self.id);
             }
         }
     };
     Input: input_dev,
     Output: output_dev,
-    fn deinit(dev_type: Dev_t, id: u32) !void {
+    fn deinit(dev_type: Dev_t, id: u32) void {
         switch (dev_type) {
             .Input => {
                 const dev = in_list.remove(id);
                 if (dev) |d| {
                     d.Input.quit = true;
                     d.Input.thread.join();
-                    var event = try events.new(events.Event.MIDI_Remove);
-                    event.MIDI_Remove.id = d.Input.id;
-                    event.MIDI_Remove.dev_type = Dev_t.Input;
-                    try events.post(event);
+                    const event = .{ .MIDI_Remove = .{ .id = d.Input.id, .dev_type = .Input } };
+                    events.post(event);
                     allocator.free(d.Input.name);
                     c.rtmidi_close_port(d.Input.ptr);
                     c.rtmidi_in_free(d.Input.ptr);
@@ -85,10 +80,8 @@ pub const Device = union(Dev_t) {
             .Output => {
                 const dev = out_list.remove(id);
                 if (dev) |d| {
-                    var event = try events.new(events.Event.MIDI_Remove);
-                    event.MIDI_Remove.id = d.Output.id;
-                    event.MIDI_Remove.dev_type = Dev_t.Output;
-                    try events.post(event);
+                    const event = .{ .MIDI_Remove = .{ .id = d.Output.id, .dev_type = .Output } };
+                    events.post(event);
                     allocator.free(d.Output.name);
                     c.rtmidi_close_port(d.Output.ptr);
                     c.rtmidi_out_free(d.Output.ptr);
@@ -226,14 +219,18 @@ fn main_loop() !void {
                     std.debug.print("found new IN: {s} \n", .{buf});
                     var dev = try create(Dev_t.Input, i, buf);
                     try in_list.add(dev);
-                    var event = try events.new(events.Event.MIDI_Add);
-                    event.MIDI_Add.dev = dev;
-                    event.MIDI_Add.dev_type = Dev_t.Input;
-                    event.MIDI_Add.id = dev.Input.id;
                     var name_copy = try allocator.allocSentinel(u8, dev.Input.name.len, 0);
                     std.mem.copyForwards(u8, name_copy, dev.Input.name);
-                    event.MIDI_Add.name = name_copy;
-                    try events.post(event);
+                    const event = .{
+                        .MIDI_Add = .{
+                            // add event
+                            .dev = dev,
+                            .dev_type = .Input,
+                            .id = dev.Input.id,
+                            .name = name_copy,
+                        },
+                    };
+                    events.post(event);
                 }
             }
         }
@@ -250,14 +247,18 @@ fn main_loop() !void {
                     std.debug.print("found new OUT: {s}\n", .{buf});
                     var dev = try create(Dev_t.Output, i, buf);
                     try out_list.add(dev);
-                    var event = try events.new(events.Event.MIDI_Add);
-                    event.MIDI_Add.dev = dev;
-                    event.MIDI_Add.dev_type = Dev_t.Output;
-                    event.MIDI_Add.id = dev.Output.id;
                     var name_copy = try allocator.allocSentinel(u8, dev.Output.name.len, 0);
                     std.mem.copyForwards(u8, name_copy, dev.Output.name);
-                    event.MIDI_Add.name = name_copy;
-                    try events.post(event);
+                    const event = .{
+                        .MIDI_Add = .{
+                            // add event
+                            .dev = dev,
+                            .dev_type = .Output,
+                            .id = dev.Output.id,
+                            .name = name_copy,
+                        },
+                    };
+                    events.post(event);
                 }
             }
         }
@@ -307,17 +308,17 @@ fn create(dev_type: Dev_t, port_number: c_uint, name: []const u8) !*Device {
     }
 }
 
-pub fn deinit() !void {
+pub fn deinit() void {
     quit = true;
     thread.join();
     var node = in_list.head;
     while (node) |n| {
         node = n.next;
-        try Device.deinit(Dev_t.Input, n.dev.Input.id);
+        Device.deinit(Dev_t.Input, n.dev.Input.id);
     }
     node = out_list.head;
     while (node) |n| {
         node = n.next;
-        try Device.deinit(Dev_t.Output, n.dev.Output.id);
+        Device.deinit(Dev_t.Output, n.dev.Output.id);
     }
 }

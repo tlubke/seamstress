@@ -40,6 +40,7 @@ pub fn main() !void {
 
     std.debug.print("init events\n", .{});
     try events.init(allocator);
+    defer events.deinit();
 
     std.debug.print("init metros\n", .{});
     try metros.init(allocator);
@@ -59,7 +60,7 @@ pub fn main() !void {
 
     std.debug.print("init MIDI\n", .{});
     try midi.init(allocator);
-    defer midi.deinit() catch {};
+    defer midi.deinit();
 
     std.debug.print("init osc\n", .{});
     try osc.init(args.local_port, allocator);

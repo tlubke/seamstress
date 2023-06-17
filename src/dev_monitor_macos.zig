@@ -38,9 +38,7 @@ fn deiterate_devices(context: ?*anyopaque, iter: c.io_iterator_t) callconv(.C) v
     var len: u32 = 256;
     while (device != 0) : (device = c.IOIteratorNext(iter)) {
         _ = c.IORegistryEntryGetProperty(device, c.kIODialinDeviceKey, device_node.ptr, &len);
-        dev.remove(device_node[0..len]) catch {
-            std.debug.print("removing device failed at address {s}\n", .{device_node[0..len]});
-        };
+        dev.remove(device_node[0..len]);
         _ = c.IOObjectRelease(device);
     }
     allocator.free(device_node);

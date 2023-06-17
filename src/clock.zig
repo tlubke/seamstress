@@ -32,14 +32,14 @@ const Fabric = struct {
         allocator.free(self.threads);
         allocator.destroy(self);
     }
-    fn loop(self: *Fabric) !void {
+    fn loop(self: *Fabric) void {
         while (!self.quit) {
-            try self.do_tick();
+            self.do_tick();
             wait(self.tick);
             self.ticks_since_start += 1;
         }
     }
-    fn do_tick(self: *Fabric) !void {
+    fn do_tick(self: *Fabric) void {
         var i: u8 = 0;
         self.lock.lock();
         while (i < 100) : (i += 1) {
@@ -48,9 +48,7 @@ const Fabric = struct {
                 if (self.threads[i].delta <= 0) {
                     self.threads[i].delta = 0;
                     self.threads[i].inactive = true;
-                    var event = try events.new(events.Event.Clock_Resume);
-                    event.Clock_Resume.id = i;
-                    try events.post(event);
+                    events.post(.{ .Clock_Resume = .{ .id = i } });
                 }
             }
         }

@@ -82,11 +82,9 @@ const Metro = struct {
             pid.join();
         }
     }
-    fn bang(self: *Metro) !void {
-        var event: *events.Data = try events.new(events.Event.Metro);
-        event.Metro.id = self.id;
-        event.Metro.stage = self.stage;
-        try events.post(event);
+    fn bang(self: *Metro) void {
+        const event = .{ .Metro = .{ .id = self.id, .stage = self.stage } };
+        events.post(event);
     }
     fn init(self: *Metro, delta: u64, count: i64) !void {
         self.delta = delta;
@@ -155,7 +153,7 @@ pub fn deinit() void {
     }
 }
 
-fn loop(self: *Metro) !void {
+fn loop(self: *Metro) void {
     var quit = false;
     self.status_lock.lock();
     self.status = Status.Running;
@@ -174,7 +172,7 @@ fn loop(self: *Metro) !void {
         }
         self.status_lock.unlock();
         if (quit) break;
-        try self.bang();
+        self.bang();
         self.stage_lock.lock();
         self.stage += 1;
         self.stage_lock.unlock();

@@ -113,19 +113,15 @@ fn window_rect() void {
     sdl_call(c.SDL_RenderSetScale(render, @intToFloat(f32, ZOOM), @intToFloat(f32, ZOOM)), "window_rect()");
 }
 
-pub fn check() !void {
-    var event: *events.Data = undefined;
+pub fn check() void {
     var ev: c.SDL_Event = undefined;
     while (c.SDL_PollEvent(&ev) != 0) {
         switch (ev.type) {
             c.SDL_KEYDOWN => {
-                event = try events.new(events.Event.Screen_Key);
-                event.Screen_Key.scancode = ev.key.keysym.sym;
-                try events.post(event);
+                events.post(.{ .Screen_Check = {} });
             },
             c.SDL_QUIT => {
-                event = try events.new(events.Event.Quit);
-                try events.post(event);
+                events.post(.{ .Quit = {} });
                 quit = true;
             },
             c.SDL_WINDOWEVENT => {
@@ -153,11 +149,10 @@ pub fn deinit() void {
     c.SDL_Quit();
 }
 
-fn loop() !void {
+fn loop() void {
     while (!quit) {
-        var event = try events.new(events.Event.Screen_Check);
-        try events.post(event);
-        std.time.sleep(20000000);
+        events.post(.{ .Screen_Check = {} });
+        std.time.sleep(2000000);
     }
 }
 

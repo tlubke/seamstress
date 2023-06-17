@@ -47,7 +47,7 @@ const Monome_List = struct {
         }
         return null;
     }
-    fn add(self: *Monome_List, dev: *Device) !*events.Data {
+    fn add(self: *Monome_List, dev: *Device) !events.Data {
         var new_node = try allocator.create(Node);
         new_node.* = Node{ .dev = dev, .next = null, .prev = null };
         if (self.tail) |n| {
@@ -59,17 +59,15 @@ const Monome_List = struct {
         }
         self.tail = new_node;
         self.size += 1;
-        var event = try events.new(events.Event.Monome_Add);
-        event.Monome_Add.dev = dev;
-        return event;
+
+        return .{ .Monome_Add = .{ .dev = dev } };
     }
-    fn remove(self: *Monome_List, path: []const u8) !void {
+    fn remove(self: *Monome_List, path: []const u8) void {
         var node = self.search(path);
         if (node) |n| {
             const dev = n.dev;
-            var event = try events.new(events.Event.Monome_Remove);
-            event.Monome_Remove.id = dev.id;
-            try events.post(event);
+            const event = .{ .Monome_Remove = .{ .id = dev.id } };
+            events.post(event);
             if (self.head == n) self.head = n.next;
             if (self.tail == n) self.tail = n.prev;
             const prev = n.prev;
@@ -83,15 +81,15 @@ const Monome_List = struct {
     }
 };
 
-pub fn remove(path: []const u8) !void {
-    try list.remove(path);
+pub fn remove(path: []const u8) void {
+    list.remove(path);
 }
 
 pub fn add(path: []const u8) !void {
     if (list.search(path) != null) return;
     const dev = try new(path);
-    var event = try list.add(dev);
-    try events.post(event);
+    const event = try list.add(dev);
+    events.post(event);
 }
 
 fn new(path: []const u8) !*Device {
@@ -107,7 +105,7 @@ const Monome_t = enum { Grid, Arc };
 
 pub const Device = struct {
     id: usize = undefined,
-    thread: c.pthread_t = undefined,
+    thread: std.Thread = undefined,
     quit: bool = undefined,
     path: [:0]const u8 = undefined,
     serial: []const u8 = undefined,
@@ -121,12 +119,11 @@ pub const Device = struct {
     quads: u8 = undefined,
     pub fn init(self: *Device, path: [:0]const u8) !void {
         self.path = path;
-        var m = c.monome_open(path);
-        if (m == null) {
+        var m = c.monome_open(path) orelse {
             std.debug.print("error: couldn't open monome device at {s}\n", .{path});
             return error.Fail;
-        }
-        self.m_dev = m.?;
+        };
+        self.m_dev = m;
         self.id = id;
         id += 1;
         var i: u8 = 0;
@@ -150,35 +147,15 @@ pub const Device = struct {
             std.debug.print("monome device appears to be a grid; rows={d}, cols={d}; quads={d}\n", .{ self.rows, self.cols, self.quads });
         }
 
-        _ = c.monome_register_handler(m, c.MONOME_BUTTON_DOWN, handle_press, self);
-        _ = c.monome_register_handler(m, c.MONOME_BUTTON_UP, handle_lift, self);
-        _ = c.monome_register_handler(m, c.MONOME_ENCODER_DELTA, handle_delta, self);
-        _ = c.monome_register_handler(m, c.MONOME_ENCODER_KEY_DOWN, handle_encoder_press, self);
-        _ = c.monome_register_handler(m, c.MONOME_ENCODER_KEY_UP, handle_encoder_lift, self);
-        _ = c.monome_register_handler(m, c.MONOME_TILT, handle_tilt, self);
-
         self.name = std.mem.span(c.monome_get_friendly_name(m));
         self.serial = std.mem.span(c.monome_get_serial(m));
 
         self.quit = false;
-        self.thread = undefined;
-        var attr: c.pthread_attr_t = undefined;
-        if (c.pthread_attr_init(&attr) != 0) return error.Fail;
-        defer _ = c.pthread_attr_destroy(&attr);
-        if (c.pthread_create(&self.thread, &attr, loop, self) != 0) return error.Fail;
+        self.thread = try std.Thread.spawn(.{}, loop, .{self});
     }
     pub fn deinit(self: *Device) void {
         self.quit = true;
-        if (c.pthread_kill(self.thread, 0) == 0) {
-            if (c.pthread_cancel(self.thread) != 0) {
-                std.debug.print("failed to cancel thread!\n", .{});
-                unreachable;
-            }
-        }
-        if (c.pthread_join(self.thread, null) != 0) {
-            std.debug.print("error in joining thread!", .{});
-            unreachable;
-        }
+        self.thread.join();
         c.monome_close(self.m_dev);
         allocator.free(self.path);
         allocator.destroy(self);
@@ -255,63 +232,56 @@ inline fn quad_offset(x: u8, y: u8) u8 {
     return ((y & 7) * 8) + (x & 7);
 }
 
-inline fn grid_key_event(e: [*c]const c.monome_event_t, ptr: ?*anyopaque, state: i2) void {
-    const self = @ptrCast(*Device, @alignCast(8, ptr.?));
-    var event = events.new(events.Event.Grid_Key) catch unreachable;
-    event.Grid_Key.id = self.id;
-    event.Grid_Key.x = e.*.unnamed_0.grid.x;
-    event.Grid_Key.y = e.*.unnamed_0.grid.y;
-    event.Grid_Key.state = state;
-    events.post(event) catch unreachable;
-}
-
-inline fn arc_key_event(e: [*c]const c.monome_event_t, ptr: ?*anyopaque, state: i2) void {
-    const self = @ptrCast(*Device, @alignCast(8, ptr.?));
-    var event = events.new(events.Event.Arc_Key) catch unreachable;
-    event.Arc_Key.id = self.id;
-    event.Arc_Key.ring = e.*.unnamed_0.encoder.number;
-    event.Arc_Key.state = state;
-    events.post(event) catch unreachable;
-}
-
-fn handle_press(e: [*c]const c.monome_event_t, ptr: ?*anyopaque) callconv(.C) void {
-    grid_key_event(e, ptr, 1);
-}
-
-fn handle_lift(e: [*c]const c.monome_event_t, ptr: ?*anyopaque) callconv(.C) void {
-    grid_key_event(e, ptr, 0);
-}
-
-fn handle_tilt(e: [*c]const c.monome_event_t, ptr: ?*anyopaque) callconv(.C) void {
-    const self = @ptrCast(*Device, @alignCast(8, ptr.?));
-    var event = events.new(events.Event.Grid_Tilt) catch unreachable;
-    event.Grid_Tilt.id = self.id;
-    event.Grid_Tilt.sensor = e.*.unnamed_0.tilt.sensor;
-    event.Grid_Tilt.x = e.*.unnamed_0.tilt.x;
-    event.Grid_Tilt.y = e.*.unnamed_0.tilt.y;
-    event.Grid_Tilt.z = e.*.unnamed_0.tilt.z;
-    events.post(event) catch unreachable;
-}
-
-fn handle_encoder_press(e: [*c]const c.monome_event_t, ptr: ?*anyopaque) callconv(.C) void {
-    arc_key_event(e, ptr, 1);
-}
-
-fn handle_encoder_lift(e: [*c]const c.monome_event_t, ptr: ?*anyopaque) callconv(.C) void {
-    arc_key_event(e, ptr, 0);
-}
-
-fn handle_delta(e: [*c]const c.monome_event_t, ptr: ?*anyopaque) callconv(.C) void {
-    const self = @ptrCast(*Device, @alignCast(8, ptr.?));
-    var event = events.new(events.Event.Arc_Encoder) catch unreachable;
-    event.Arc_Encoder.id = self.id;
-    event.Arc_Encoder.ring = e.*.unnamed_0.encoder.number;
-    event.Arc_Encoder.delta = e.*.unnamed_0.encoder.delta;
-    events.post(event) catch unreachable;
-}
-
-fn loop(self: ?*anyopaque) callconv(.C) ?*anyopaque {
-    var dev = @ptrCast(*Device, @alignCast(8, self.?));
-    c.monome_event_loop(dev.m_dev);
-    return null;
+fn loop(self: *Device) !void {
+    const fd = c.monome_get_fd(self.m_dev);
+    var fds = [1]std.os.pollfd{.{ .fd = fd, .events = std.os.POLL.IN, .revents = 0 }};
+    var ev: c.monome_event = undefined;
+    while (!self.quit) {
+        if (c.monome_event_next(self.m_dev, &ev) > 0) {
+            switch (ev.event_type) {
+                c.MONOME_BUTTON_UP => {
+                    const x = ev.unnamed_0.grid.x;
+                    const y = ev.unnamed_0.grid.y;
+                    const event = .{ .Grid_Key = .{ .id = self.id, .x = x, .y = y, .state = 0 } };
+                    events.post(event);
+                },
+                c.MONOME_BUTTON_DOWN => {
+                    const x = ev.unnamed_0.grid.x;
+                    const y = ev.unnamed_0.grid.y;
+                    const event = .{ .Grid_Key = .{ .id = self.id, .x = x, .y = y, .state = 1 } };
+                    events.post(event);
+                },
+                c.MONOME_ENCODER_DELTA => {
+                    const ring = ev.unnamed_0.encoder.number;
+                    const delta = ev.unnamed_0.encoder.delta;
+                    const event = .{ .Arc_Encoder = .{ .id = self.id, .ring = ring, .delta = delta } };
+                    events.post(event);
+                },
+                c.MONOME_ENCODER_KEY_UP => {
+                    const ring = ev.unnamed_0.encoder.number;
+                    const event = .{ .Arc_Key = .{ .id = self.id, .ring = ring, .state = 0 } };
+                    events.post(event);
+                },
+                c.MONOME_ENCODER_KEY_DOWN => {
+                    const ring = ev.unnamed_0.encoder.number;
+                    const event = .{ .Arc_Key = .{ .id = self.id, .ring = ring, .state = 1 } };
+                    events.post(event);
+                },
+                c.MONOME_TILT => {
+                    const sensor = ev.unnamed_0.tilt.sensor;
+                    const x = ev.unnamed_0.tilt.x;
+                    const y = ev.unnamed_0.tilt.y;
+                    const z = ev.unnamed_0.tilt.z;
+                    const event = .{ .Grid_Tilt = .{ .id = self.id, .sensor = sensor, .x = x, .y = y, .z = z } };
+                    events.post(event);
+                },
+                else => {
+                    @setCold(true);
+                    std.debug.print("got bad event type: {d}", .{ev.event_type});
+                },
+            }
+        } else {
+            _ = try std.os.poll(&fds, 1000);
+        }
+    }
 }

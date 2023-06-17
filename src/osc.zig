@@ -137,17 +137,13 @@ fn osc_receive(path: [*c]const u8, types: [*c]const u8, argv: [*c][*c]lo.lo_arg,
         }
     }
 
-    var event = events.new(events.Event.OSC) catch {
-        return -1;
-    };
-    event.OSC.msg = message;
-    event.OSC.from_host = "";
-    event.OSC.from_port = "";
-    event.OSC.path = "";
-
-    events.post(event) catch {
-        return -1;
-    };
+    const event = .{ .OSC = .{
+        .msg = message,
+        .from_host = "",
+        .from_port = "",
+        .path = "",
+    } };
+    events.post(event);
     return 0;
 }
 
