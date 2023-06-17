@@ -1,4 +1,5 @@
 const std = @import("std");
+
 const events = @import("events.zig");
 const c = @import("c_includes.zig").imported;
 
@@ -19,7 +20,6 @@ const Monome_List = struct {
         next: ?*Node,
         prev: ?*Node,
         dev: *Device,
-        path: []const u8,
     };
     head: ?*Node,
     tail: ?*Node,
@@ -40,16 +40,16 @@ const Monome_List = struct {
     fn search(self: *Monome_List, path: []const u8) ?*Node {
         var node = self.head;
         while (node) |n| {
-            if (std.mem.eql(u8, path, n.path)) {
+            if (std.mem.eql(u8, path, n.dev.path)) {
                 return n;
             }
             node = n.next;
         }
         return null;
     }
-    fn add(self: *Monome_List, dev: *Device, path: []const u8) !*events.Data {
+    fn add(self: *Monome_List, dev: *Device) !*events.Data {
         var new_node = try allocator.create(Node);
-        new_node.* = Node{ .dev = dev, .path = path, .next = null, .prev = null };
+        new_node.* = Node{ .dev = dev, .next = null, .prev = null };
         if (self.tail) |n| {
             n.next = new_node;
             new_node.prev = n;
@@ -65,21 +65,21 @@ const Monome_List = struct {
     }
     fn remove(self: *Monome_List, path: []const u8) !void {
         var node = self.search(path);
-        if (node == null) return;
-        var dev = node.?.dev;
-        var event = try events.new(events.Event.Monome_Remove);
-        event.Monome_Remove.id = dev.id;
-        try events.post(event);
-        if (self.head == node.?) self.head = node.?.next;
-        if (self.tail == node.?) self.tail = node.?.prev;
-        var prev = node.?.prev;
-        var next = node.?.next;
-        if (prev) |p| p.next = next;
-        if (next) |n| n.prev = prev;
-        self.size -= 1;
-        dev.deinit();
-        allocator.free(node.?.path);
-        allocator.destroy(node.?);
+        if (node) |n| {
+            const dev = n.dev;
+            var event = try events.new(events.Event.Monome_Remove);
+            event.Monome_Remove.id = dev.id;
+            try events.post(event);
+            if (self.head == n) self.head = n.next;
+            if (self.tail == n) self.tail = n.prev;
+            const prev = n.prev;
+            const next = n.next;
+            if (prev) |p| p.next = next;
+            if (next) |nxt| nxt.prev = prev;
+            self.size -= 1;
+            dev.deinit();
+            allocator.destroy(n);
+        }
     }
 };
 
@@ -90,7 +90,7 @@ pub fn remove(path: []const u8) !void {
 pub fn add(path: []const u8) !void {
     if (list.search(path) != null) return;
     const dev = try new(path);
-    var event = try list.add(dev, path);
+    var event = try list.add(dev);
     try events.post(event);
 }
 
@@ -107,8 +107,7 @@ const Monome_t = enum { Grid, Arc };
 
 pub const Device = struct {
     id: usize = undefined,
-    thread: std.Thread = undefined,
-    lock: std.Thread.Mutex = undefined,
+    thread: c.pthread_t = undefined,
     quit: bool = undefined,
     path: [:0]const u8 = undefined,
     serial: []const u8 = undefined,
@@ -161,15 +160,25 @@ pub const Device = struct {
         self.name = std.mem.span(c.monome_get_friendly_name(m));
         self.serial = std.mem.span(c.monome_get_serial(m));
 
-        self.lock = .{};
         self.quit = false;
-        self.thread = try std.Thread.spawn(.{}, loop, .{ self, self.m_dev });
+        self.thread = undefined;
+        var attr: c.pthread_attr_t = undefined;
+        if (c.pthread_attr_init(&attr) != 0) return error.Fail;
+        defer _ = c.pthread_attr_destroy(&attr);
+        if (c.pthread_create(&self.thread, &attr, loop, self) != 0) return error.Fail;
     }
     pub fn deinit(self: *Device) void {
-        self.lock.lock();
         self.quit = true;
-        self.lock.unlock();
-        self.thread.join();
+        if (c.pthread_kill(self.thread, 0) == 0) {
+            if (c.pthread_cancel(self.thread) != 0) {
+                std.debug.print("failed to cancel thread!\n", .{});
+                unreachable;
+            }
+        }
+        if (c.pthread_join(self.thread, null) != 0) {
+            std.debug.print("error in joining thread!", .{});
+            unreachable;
+        }
         c.monome_close(self.m_dev);
         allocator.free(self.path);
         allocator.destroy(self);
@@ -301,12 +310,8 @@ fn handle_delta(e: [*c]const c.monome_event_t, ptr: ?*anyopaque) callconv(.C) vo
     events.post(event) catch unreachable;
 }
 
-fn loop(self: *Device, monome: *c.struct_monome) void {
-    while (!self.quit) {
-        switch (c.monome_event_handle_next(monome)) {
-            1 => continue,
-            0 => std.time.sleep(1000),
-            else => self.quit = true,
-        }
-    }
+fn loop(self: ?*anyopaque) callconv(.C) ?*anyopaque {
+    var dev = @ptrCast(*Device, @alignCast(8, self.?));
+    c.monome_event_loop(dev.m_dev);
+    return null;
 }
