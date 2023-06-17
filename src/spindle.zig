@@ -805,7 +805,6 @@ pub fn midi_event(id: u32, timestamp: f64, bytes: []const u8) !void {
 
 // outward-facing clock resume
 pub fn resume_clock(idx: u8) !void {
-    std.debug.print("top: {d}\n", .{lvm.getTop()});
     const i = idx + 1;
     _ = try lvm.getGlobal("_seamstress");
     _ = lvm.getField(-1, "clock");
