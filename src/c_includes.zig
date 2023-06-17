@@ -1,6 +1,7 @@
 const builtin = @import("builtin");
 pub const imported = @cImport({
     @cInclude("monome.h");
+    @cInclude("pthread.h");
     @cInclude("lo/lo.h");
     @cInclude("dns_sd.h");
     @cInclude("SDL2/SDL.h");
