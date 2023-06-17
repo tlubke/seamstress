@@ -14,11 +14,6 @@ brew install lua liblo libmonome rtmidi sdl2 sdl2_ttf
 
 building from source requires the master build of [zig](https://github.com/ziglang/zig).
 download a binary from [here](https://ziglang.org/download/) and add it to your PATH.
-without zig installed, the following commands will instead attempt
-to install the provided binary (which is for M1 mac); 
-worth a shot if one does not want to install zig,
-but zig is not a big download.
-
 to build, invoke
 
 ```
