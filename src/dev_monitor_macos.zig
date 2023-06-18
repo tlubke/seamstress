@@ -80,9 +80,7 @@ fn setup_usb() !void {
     c.CFDictionarySetValue(matching, //
         c.CFStringCreateWithCString(null, kIOSerialBSDTypeKey, 134217984), //
         c.CFStringCreateWithCString(null, kIOSerialBSDAllTypes, 134217984));
-    var main_port: c.mach_port_t = undefined;
-    _ = c.IOMainPort(c.MACH_PORT_NULL, &main_port);
-    state.notify_add = c.IONotificationPortCreate(main_port);
+    state.notify_add = c.IONotificationPortCreate(0);
     if (state.notify_add == null) {
         std.debug.print("dev_monitor_init(): couldn't allocate notification port!\n", .{});
         return error.Fail;
@@ -98,7 +96,7 @@ fn setup_usb() !void {
         state, //
         &state.iter_add); //
     try_add(state.iter_add);
-    state.notify_destroy = c.IONotificationPortCreate(c.kIOMainPortDefault);
+    state.notify_destroy = c.IONotificationPortCreate(0);
     if (state.notify_destroy == null) {
         std.debug.print("dev_monitorr_init(): couldn't allocate notification port!\n", .{});
         return error.Fail;
