@@ -25,7 +25,6 @@ pub fn main() !void {
     var general_allocator = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = general_allocator.allocator();
     defer _ = general_allocator.deinit();
-    defer events.free_pending();
 
     var allocated = true;
     const config = std.process.getEnvVarOwned(allocator, "SEAMSTRESS_CONFIG") catch |err| blk: {

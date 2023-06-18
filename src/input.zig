@@ -1,5 +1,6 @@
 const std = @import("std");
 const events = @import("events.zig");
+const c = @import("c_includes.zig").imported;
 
 var quit = false;
 var pid: std.Thread = undefined;
@@ -21,10 +22,10 @@ fn input_run() !void {
     var stdin = std.io.getStdIn().reader();
     var buf = try allocator.alloc(u8, 4096);
     defer allocator.free(buf);
-    // var poller = std.io.poll(allocator, enum { stdin }, .{ .stdin = stdin });
-    // defer poller.deinit();
-    var fds = [1]std.os.pollfd{std.os.pollfd{ .fd = 0, .events = std.os.POLL.IN, .revents = 0 }};
-
+    var fds = [1]std.os.pollfd{
+        .{ .fd = 0, .events = std.os.POLL.IN, .revents = 0 },
+    };
+    set_signal();
     while (!quit) {
         const data = try std.os.poll(&fds, 1);
         if (data == 0) continue;
@@ -45,4 +46,13 @@ fn input_run() !void {
         events.post(event);
     }
     events.post(.{ .Quit = {} });
+}
+
+fn set_signal() void {
+    _ = c.signal(c.SIGINT, signal_handler);
+}
+
+fn signal_handler(signal: c_int) callconv(.C) void {
+    _ = signal;
+    quit = true;
 }

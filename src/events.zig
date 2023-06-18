@@ -319,7 +319,7 @@ pub fn deinit() void {
     queue.deinit();
 }
 
-pub fn free_pending() void {
+fn free_pending() void {
     var event: ?*Data = null;
     var done = false;
     while (!done) {
