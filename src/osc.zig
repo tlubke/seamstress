@@ -42,22 +42,10 @@ pub fn send(to_host: [*:0]const u8, to_port: [*:0]const u8, path: [*:0]const u8,
             Lo_Arg_t.Lo_Double => |a| _ = lo.lo_message_add_double(message, a),
             Lo_Arg_t.Lo_Symbol => |a| _ = lo.lo_message_add_symbol(message, a),
             Lo_Arg_t.Lo_Midi => |a| _ = lo.lo_message_add_midi(message, @ptrCast([*c]u8, @constCast(a[0..4]))),
-            Lo_Arg_t.Lo_True => |a| {
-                _ = a;
-                _ = lo.lo_message_add_true(message);
-            },
-            Lo_Arg_t.Lo_False => |a| {
-                _ = a;
-                _ = lo.lo_message_add_false(message);
-            },
-            Lo_Arg_t.Lo_Nil => |a| {
-                _ = a;
-                _ = lo.lo_message_add_nil(message);
-            },
-            Lo_Arg_t.Lo_Infinitum => |a| {
-                _ = a;
-                _ = lo.lo_message_add_infinitum(message);
-            },
+            Lo_Arg_t.Lo_True => _ = lo.lo_message_add_true(message),
+            Lo_Arg_t.Lo_False => _ = lo.lo_message_add_false(message),
+            Lo_Arg_t.Lo_Nil => _ = lo.lo_message_add_nil(message),
+            Lo_Arg_t.Lo_Infinitum => _ = lo.lo_message_add_infinitum(message),
         }
     }
     _ = lo.lo_send_message(address, path, message);
@@ -74,16 +62,18 @@ fn lo_error_handler(num: c_int, m: [*c]const u8, path: [*c]const u8) callconv(.C
 }
 
 fn osc_receive(path: [*c]const u8, types: [*c]const u8, argv: [*c][*c]lo.lo_arg, argc: c_int, msg: lo.lo_message, user_data: lo.lo_message) callconv(.C) c_int {
-    _ = path;
+    const path_slice = @ptrCast([*]const u8, path);
+    var path_len: usize = 0;
+    while (path_slice[path_len] != 0) : (path_len += 1) {}
     _ = user_data;
     defer lo.lo_message_free(msg);
     const source = lo.lo_message_get_source(msg);
-    _ = source;
-    // const c_host: [*c]const u8 = lo.lo_address_get_hostname(source);
-    // const host: [:0]const u8 = std.mem.span(c_host);
-    // const c_port: [*c]const u8 = lo.lo_address_get_port(source);
-    // const port: [:0]const u8 = std.mem.span(c_port);
-    // const path_copy: [:0]const u8 = std.mem.span(path);
+    const c_host = @ptrCast([*]const u8, lo.lo_address_get_hostname(source));
+    var host_len: usize = 0;
+    while (c_host[host_len] != 0) : (host_len += 1) {}
+    const c_port = @ptrCast([*]const u8, lo.lo_address_get_port(source));
+    var port_len: usize = 0;
+    while (c_port[port_len] != 0) : (port_len += 1) {}
     const arg_size = @intCast(usize, argc);
     var message: []Lo_Arg = allocator.alloc(Lo_Arg, arg_size) catch unreachable;
 
@@ -96,9 +86,12 @@ fn osc_receive(path: [*c]const u8, types: [*c]const u8, argv: [*c][*c]lo.lo_arg,
             lo.LO_FLOAT => {
                 message[i] = Lo_Arg{ .Lo_Float = argv[i].*.f };
             },
-            // lo.LO_STRING => {
-            //    message[i] = Lo_Arg{ .Lo_String = std.mem.span(argv[i].*.s) };
-            // },
+            lo.LO_STRING => {
+                var slice = @ptrCast([*]u8, &argv[i].*.s);
+                var len: usize = 0;
+                while (slice[len] != 0) : (len += 1) {}
+                message[i] = Lo_Arg{ .Lo_String = slice[0..len :0] };
+            },
             lo.LO_BLOB => {
                 const arg = argv[i];
                 message[i] = Lo_Arg{ .Lo_Blob = Lo_Blob_t{
@@ -112,9 +105,12 @@ fn osc_receive(path: [*c]const u8, types: [*c]const u8, argv: [*c][*c]lo.lo_arg,
             lo.LO_DOUBLE => {
                 message[i] = Lo_Arg{ .Lo_Double = argv[i].*.d };
             },
-            // lo.LO_SYMBOL => {
-            //     message[i] = Lo_Arg{ .Lo_Symbol = std.mem.span(argv[i].*.S) };
-            // },
+            lo.LO_SYMBOL => {
+                var slice = @ptrCast([*]u8, &argv[i].*.S);
+                var len: usize = 0;
+                while (slice[len] != 0) : (len += 1) {}
+                message[i] = Lo_Arg{ .Lo_Symbol = slice[0..len :0] };
+            },
             lo.LO_MIDI => {
                 message[i] = Lo_Arg{ .Lo_Midi = argv[i].*.m };
             },
@@ -139,9 +135,9 @@ fn osc_receive(path: [*c]const u8, types: [*c]const u8, argv: [*c][*c]lo.lo_arg,
 
     const event = .{ .OSC = .{
         .msg = message,
-        .from_host = "",
-        .from_port = "",
-        .path = "",
+        .from_host = c_host[0..host_len :0],
+        .from_port = c_port[0..port_len :0],
+        .path = path_slice[0..path_len :0],
     } };
     events.post(event);
     return 0;
