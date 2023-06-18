@@ -15,7 +15,7 @@ const screen = @import("screen.zig");
 const midi = @import("midi.zig");
 const c = @import("c_includes.zig").imported;
 
-const VERSION = std.builtin.Version{ .major = 0, .minor = 6, .patch = 4 };
+const VERSION = std.builtin.Version{ .major = 0, .minor = 6, .patch = 5 };
 
 pub fn main() !void {
     defer std.debug.print("seamstress shutdown complete\n", .{});
