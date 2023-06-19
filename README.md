@@ -43,6 +43,4 @@ regenerate documentation.
 
 seamstress is inspired by [monome norns's](https://github.com/monome/norns) matron,
 which was written by @catfact.
-macOS device handling borrows from [serialosc](https://github.com/monome/serialosc),
-written by @wrl.
 norns was initiated by @tehn.
