@@ -14,6 +14,7 @@ brew install lua liblo rtmidi sdl2 sdl2_ttf
 
 building from source requires the master build of [zig](https://github.com/ziglang/zig).
 download a binary from [here](https://ziglang.org/download/) and add it to your PATH.
+(`brew install zig --HEAD` appears to work, but it will be faster to download a binary.)
 to build, invoke
 
 ```
