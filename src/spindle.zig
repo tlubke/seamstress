@@ -3,7 +3,7 @@
 // @module seamstress
 const std = @import("std");
 const args = @import("args.zig");
-const osc = @import("osc.zig");
+const osc = @import("serialosc.zig");
 const monome = @import("monome.zig");
 const midi = @import("midi.zig");
 const clock = @import("clock.zig");
@@ -198,7 +198,7 @@ fn osc_send(l: *Lua) i32 {
 fn grid_set_led(l: *Lua) i32 {
     check_num_args(l, 4);
     l.checkType(1, ziglua.LuaType.light_userdata);
-    const md: *monome.Device = l.toUserdata(monome.Device, 1) catch unreachable;
+    const md = l.toUserdata(monome.Monome, 1) catch unreachable;
     const x = @intCast(u8, l.checkInteger(2) - 1);
     const y = @intCast(u8, l.checkInteger(3) - 1);
     const val = @intCast(u8, l.checkInteger(4));
@@ -216,7 +216,7 @@ fn grid_set_led(l: *Lua) i32 {
 fn grid_all_led(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
-    const md = l.toUserdata(monome.Device, 1) catch unreachable;
+    const md = l.toUserdata(monome.Monome, 1) catch unreachable;
     const val = @intCast(u8, l.checkInteger(2));
     md.grid_all_led(val);
     l.setTop(0);
@@ -230,7 +230,7 @@ fn grid_all_led(l: *Lua) i32 {
 fn grid_rows(l: *Lua) i32 {
     check_num_args(l, 1);
     l.checkType(1, ziglua.LuaType.light_userdata);
-    const md = l.toUserdata(monome.Device, 1) catch unreachable;
+    const md = l.toUserdata(monome.Monome, 1) catch unreachable;
     l.setTop(0);
     l.pushInteger(md.rows);
     return 1;
@@ -243,7 +243,7 @@ fn grid_rows(l: *Lua) i32 {
 fn grid_cols(l: *Lua) i32 {
     check_num_args(l, 1);
     l.checkType(1, ziglua.LuaType.light_userdata);
-    const md = l.toUserdata(monome.Device, 1) catch unreachable;
+    const md = l.toUserdata(monome.Monome, 1) catch unreachable;
     l.setTop(0);
     l.pushInteger(md.cols);
     return 1;
@@ -258,9 +258,8 @@ fn grid_cols(l: *Lua) i32 {
 fn grid_set_rotation(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
-    const md = l.toUserdata(monome.Device, 1) catch unreachable;
-    const rotation = @intCast(u8, l.checkInteger(2));
-    // TODO what does rotation want to be? in degrees?
+    const md = l.toUserdata(monome.Monome, 1) catch unreachable;
+    const rotation = @intCast(u16, l.checkInteger(2));
     md.set_rotation(rotation);
     l.setTop(0);
     return 0;
@@ -275,9 +274,9 @@ fn grid_set_rotation(l: *Lua) i32 {
 fn grid_tilt_enable(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
-    const md = l.toUserdata(monome.Device, 1) catch unreachable;
+    const md = l.toUserdata(monome.Monome, 1) catch unreachable;
     const sensor = @intCast(u8, l.checkInteger(2) - 1);
-    md.tilt_enable(sensor);
+    md.tilt_set(sensor, 1);
     return 0;
 }
 
@@ -290,9 +289,9 @@ fn grid_tilt_enable(l: *Lua) i32 {
 fn grid_tilt_disable(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
-    const md = l.toUserdata(monome.Device, 1) catch unreachable;
+    const md = l.toUserdata(monome.Monome, 1) catch unreachable;
     const sensor = @intCast(u8, l.checkInteger(2) - 1);
-    md.tilt_disable(sensor);
+    md.tilt_set(sensor, 0);
     return 0;
 }
 
@@ -307,7 +306,7 @@ fn grid_tilt_disable(l: *Lua) i32 {
 fn arc_set_led(l: *Lua) i32 {
     check_num_args(l, 4);
     l.checkType(1, ziglua.LuaType.light_userdata);
-    const md = l.toUserdata(monome.Device, 1) catch unreachable;
+    const md = l.toUserdata(monome.Monome, 1) catch unreachable;
     const ring = @intCast(u8, l.checkInteger(2) - 1);
     const led = @intCast(u8, l.checkInteger(3) - 1);
     const val = @intCast(u8, l.checkInteger(4));
@@ -325,7 +324,7 @@ fn arc_set_led(l: *Lua) i32 {
 fn arc_all_led(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
-    const md = l.toUserdata(monome.Device, 1) catch unreachable;
+    const md = l.toUserdata(monome.Monome, 1) catch unreachable;
     const val = @intCast(u8, l.checkInteger(2));
     md.grid_all_led(val);
     l.setTop(0);
@@ -341,7 +340,7 @@ fn arc_all_led(l: *Lua) i32 {
 fn monome_refresh(l: *Lua) i32 {
     check_num_args(l, 1);
     l.checkType(1, ziglua.LuaType.light_userdata);
-    const md = l.toUserdata(monome.Device, 1) catch unreachable;
+    const md = l.toUserdata(monome.Monome, 1) catch unreachable;
     md.refresh();
     l.setTop(0);
     return 0;
@@ -357,7 +356,7 @@ fn monome_refresh(l: *Lua) i32 {
 fn monome_intensity(l: *Lua) i32 {
     check_num_args(l, 2);
     l.checkType(1, ziglua.LuaType.light_userdata);
-    const md = l.toUserdata(monome.Device, 1) catch unreachable;
+    const md = l.toUserdata(monome.Monome, 1) catch unreachable;
     const level = @intCast(u8, l.checkInteger(2));
     md.intensity(level);
     l.setTop(0);
@@ -644,9 +643,16 @@ pub fn exec_code_line(line: [:0]const u8) !void {
     try handle_line(&lvm, line);
 }
 
-pub fn osc_event(from_host: [:0]const u8, from_port: [:0]const u8, path: [:0]const u8, msg: []osc.Lo_Arg) !void {
+pub fn osc_event(
+    from_host: []const u8,
+    from_port: []const u8,
+    path: []const u8,
+    msg: []osc.Lo_Arg,
+) !void {
     try push_lua_func("osc", "event");
-    _ = lvm.pushString(path);
+    var path_copy = try allocator.allocSentinel(u8, path.len, 0);
+    std.mem.copyForwards(u8, path_copy, path);
+    _ = lvm.pushString(path_copy);
     lvm.createTable(@intCast(i32, msg.len), 0);
     var i: usize = 0;
     while (i < msg.len) : (i += 1) {
@@ -657,10 +663,9 @@ pub fn osc_event(from_host: [:0]const u8, from_port: [:0]const u8, path: [:0]con
                 _ = lvm.pushString(a);
             },
             .Lo_Blob => |a| {
-                _ = a;
-                lvm.pushNil();
-                // var slice = std.mem.span(@ptrCast(*u8, a.dataptr.?));
-                // lvm.pushBytes(slice);
+                var ptr = @ptrCast([*]u8, a.dataptr.?);
+                var len: usize = 0;
+                _ = lvm.pushBytes(ptr[0..len]);
             },
             .Lo_Int64 => |a| lvm.pushInteger(a),
             .Lo_Double => |a| lvm.pushNumber(a),
@@ -687,9 +692,13 @@ pub fn osc_event(from_host: [:0]const u8, from_port: [:0]const u8, path: [:0]con
     }
 
     lvm.createTable(2, 0);
-    _ = lvm.pushString(from_host);
+    var host_copy = try allocator.allocSentinel(u8, from_host.len, 0);
+    std.mem.copyForwards(u8, host_copy, from_host);
+    _ = lvm.pushString(host_copy);
     lvm.rawSetIndex(-2, 1);
-    _ = lvm.pushString(from_port);
+    var port_copy = try allocator.allocSentinel(u8, from_port.len, 0);
+    std.mem.copyForwards(u8, port_copy, from_port);
+    _ = lvm.pushString(port_copy);
     lvm.rawSetIndex(-2, 2);
 
     // report(lvm, docall(lvm, 3, 0));
@@ -701,20 +710,20 @@ pub fn reset_lua() !void {
     try startup(script_file);
 }
 
-pub fn monome_add(dev: *monome.Device) !void {
+pub fn monome_add(dev: *monome.Monome) !void {
     const id = dev.id;
-    const serial = dev.serial;
-    const name = dev.name;
+    const port = dev.name orelse return error.Fail;
+    const name = switch (dev.m_type) {
+        .Grid => "monome grid",
+        .Arc => "monome arc",
+    };
     try push_lua_func("monome", "add");
     lvm.pushInteger(@intCast(i64, id + 1));
-    var serial_copy = try allocator.allocSentinel(u8, serial.len, 0);
-    defer allocator.free(serial_copy);
-    std.mem.copyForwards(u8, serial_copy, serial);
-    _ = lvm.pushString(serial_copy);
-    var name_copy = try allocator.allocSentinel(u8, name.len, 0);
-    defer allocator.free(name_copy);
-    std.mem.copyForwards(u8, name_copy, name);
-    _ = lvm.pushString(name_copy);
+    var port_copy = try allocator.allocSentinel(u8, port.len, 0);
+    defer allocator.free(port_copy);
+    std.mem.copyForwards(u8, port_copy, port);
+    _ = lvm.pushString(port_copy);
+    _ = lvm.pushString(name);
     lvm.pushLightUserdata(dev);
     try docall(&lvm, 4, 0);
 }
@@ -725,7 +734,7 @@ pub fn monome_remove(id: usize) !void {
     try docall(&lvm, 1, 0);
 }
 
-pub fn grid_key(id: usize, x: u32, y: u32, state: u8) !void {
+pub fn grid_key(id: usize, x: i32, y: i32, state: i32) !void {
     try push_lua_func("grid", "key");
     lvm.pushInteger(@intCast(i64, id + 1));
     lvm.pushInteger(x + 1);
@@ -734,7 +743,7 @@ pub fn grid_key(id: usize, x: u32, y: u32, state: u8) !void {
     try docall(&lvm, 4, 0);
 }
 
-pub fn grid_tilt(id: usize, sensor: u32, x: i32, y: i32, z: i32) !void {
+pub fn grid_tilt(id: usize, sensor: i32, x: i32, y: i32, z: i32) !void {
     try push_lua_func("grid", "tilt");
     lvm.pushInteger(@intCast(i64, id + 1));
     lvm.pushInteger(sensor + 1);
@@ -744,7 +753,7 @@ pub fn grid_tilt(id: usize, sensor: u32, x: i32, y: i32, z: i32) !void {
     try docall(&lvm, 5, 0);
 }
 
-pub fn arc_delta(id: usize, ring: u32, delta: i32) !void {
+pub fn arc_delta(id: usize, ring: i32, delta: i32) !void {
     try push_lua_func("arc", "delta");
     lvm.pushInteger(@intCast(i64, id + 1));
     lvm.pushInteger(ring + 1);
@@ -752,7 +761,7 @@ pub fn arc_delta(id: usize, ring: u32, delta: i32) !void {
     try docall(&lvm, 3, 0);
 }
 
-pub fn arc_key(id: usize, ring: u32, state: u8) !void {
+pub fn arc_key(id: usize, ring: i32, state: i32) !void {
     try push_lua_func("arc", "delta");
     lvm.pushInteger(@intCast(i64, id + 1));
     lvm.pushInteger(ring + 1);

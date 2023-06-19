@@ -1,215 +1,246 @@
 const std = @import("std");
-
+const osc = @import("serialosc.zig");
 const events = @import("events.zig");
 const c = @import("c_includes.zig").imported;
 
 var allocator: std.mem.Allocator = undefined;
-var id: usize = 0;
-var list = Monome_List{ .head = null, .tail = null, .size = 0 };
+var devices: []Monome = undefined;
 
-pub fn init(alloc_pointer: std.mem.Allocator) void {
-    allocator = alloc_pointer;
-}
-
-pub fn deinit() void {
-    while (list.pop_and_deinit()) {}
-}
-
-const Monome_List = struct {
-    const Node = struct {
-        next: ?*Node,
-        prev: ?*Node,
-        dev: *Device,
-    };
-    head: ?*Node,
-    tail: ?*Node,
-    size: usize,
-    fn pop_and_deinit(self: *Monome_List) bool {
-        if (self.head) |n| {
-            self.head = n.next;
-            const dev = n.dev;
-            dev.deinit();
-            allocator.destroy(n);
-            self.size -= 1;
-            return true;
-        } else {
-            std.debug.assert(self.size == 0);
-            return false;
-        }
-    }
-    fn search(self: *Monome_List, path: []const u8) ?*Node {
-        var node = self.head;
-        while (node) |n| {
-            if (std.mem.eql(u8, path, n.dev.path)) {
-                return n;
-            }
-            node = n.next;
-        }
-        return null;
-    }
-    fn add(self: *Monome_List, dev: *Device) !events.Data {
-        var new_node = try allocator.create(Node);
-        new_node.* = Node{ .dev = dev, .next = null, .prev = null };
-        if (self.tail) |n| {
-            n.next = new_node;
-            new_node.prev = n;
-        } else {
-            std.debug.assert(self.size == 0);
-            self.head = new_node;
-        }
-        self.tail = new_node;
-        self.size += 1;
-
-        return .{ .Monome_Add = .{ .dev = dev } };
-    }
-    fn remove(self: *Monome_List, path: []const u8) void {
-        var node = self.search(path);
-        if (node) |n| {
-            const dev = n.dev;
-            const event = .{ .Monome_Remove = .{ .id = dev.id } };
-            events.post(event);
-            if (self.head == n) self.head = n.next;
-            if (self.tail == n) self.tail = n.prev;
-            const prev = n.prev;
-            const next = n.next;
-            if (prev) |p| p.next = next;
-            if (next) |nxt| nxt.prev = prev;
-            self.size -= 1;
-            dev.deinit();
-            allocator.destroy(n);
-        }
-    }
-};
-
-pub fn remove(path: []const u8) void {
-    list.remove(path);
-}
-
-pub fn add(path: []const u8) !void {
-    if (list.search(path) != null) return;
-    const dev = try new(path);
-    const event = try list.add(dev);
-    events.post(event);
-}
-
-fn new(path: []const u8) !*Device {
-    var path_copy: [:0]u8 = try allocator.allocSentinel(u8, path.len, 0);
-    std.mem.copyForwards(u8, path_copy, path);
-    var device = try allocator.create(Device);
-    device.* = Device{};
-    try device.init(path_copy);
-    return device;
-}
-
-const Monome_t = enum { Grid, Arc };
-
-pub const Device = struct {
-    id: usize = undefined,
-    thread: std.Thread = undefined,
-    quit: bool = undefined,
-    path: [:0]const u8 = undefined,
-    serial: []const u8 = undefined,
-    name: []const u8 = undefined,
-    dev_type: Monome_t = undefined,
-    m_dev: *c.struct_monome = undefined,
+pub const Monome_t = enum { Grid, Arc };
+pub const Monome = struct {
+    id: u8 = 0,
+    connected: bool = false,
+    name: ?[]const u8 = null,
+    to_port: ?[]const u8 = null,
+    m_type: Monome_t = undefined,
+    rows: u8 = undefined,
+    cols: u8 = undefined,
+    quads: u8 = undefined,
     data: [4][64]u8 = undefined,
     dirty: [4]bool = undefined,
-    cols: u8 = undefined,
-    rows: u8 = undefined,
-    quads: u8 = undefined,
-    pub fn init(self: *Device, path: [:0]const u8) !void {
-        self.path = path;
-        var m = c.monome_open(path) orelse {
-            std.debug.print("error: couldn't open monome device at {s}\n", .{path});
-            return error.Fail;
-        };
-        self.m_dev = m;
-        self.id = id;
-        id += 1;
-        var i: u8 = 0;
-        while (i < 4) : (i += 1) {
-            self.dirty[i] = false;
-            var j: u8 = 0;
-            while (j < 64) : (j += 1) {
-                self.data[i][j] = 0;
-            }
-        }
-        self.rows = @intCast(u8, c.monome_get_rows(m));
-        self.cols = @intCast(u8, c.monome_get_cols(m));
-
-        if (self.rows == 0 and self.cols == 0) {
-            std.debug.print("monome device reports zero rows/cols; assuming arc\n", .{});
-            self.dev_type = .Arc;
-            self.quads = 4;
-        } else {
-            self.dev_type = .Grid;
-            self.quads = (self.rows * self.cols) / 64;
-            std.debug.print("monome device appears to be a grid; rows={d}, cols={d}; quads={d}\n", .{ self.rows, self.cols, self.quads });
-        }
-
-        self.name = std.mem.span(c.monome_get_friendly_name(m));
-        self.serial = std.mem.span(c.monome_get_serial(m));
-
-        self.quit = false;
-        self.thread = try std.Thread.spawn(.{}, loop, .{self});
+    thread: c.lo_server_thread = undefined,
+    from_port: u16 = undefined,
+    addr: c.lo_address = undefined,
+    fn set_port(self: *Monome) void {
+        var message = c.lo_message_new();
+        _ = c.lo_message_add_int32(message, self.from_port);
+        _ = c.lo_send_message(self.addr, "/sys/port", message);
+        c.lo_message_free(message);
     }
-    pub fn deinit(self: *Device) void {
-        self.quit = true;
-        self.thread.join();
-        c.monome_close(self.m_dev);
-        allocator.free(self.path);
-        allocator.destroy(self);
+    fn get_size(self: *Monome) void {
+        var message = c.lo_message_new();
+        _ = c.lo_message_add_string(message, "localhost");
+        _ = c.lo_message_add_int32(message, self.from_port);
+        _ = c.lo_send_message(self.addr, "/sys/info", message);
+        c.lo_message_free(message);
     }
-    pub fn set_rotation(self: *Device, rotation: u8) void {
-        c.monome_set_rotation(self.m_dev, rotation);
+    pub fn grid_set_led(self: *Monome, x: u8, y: u8, val: u8) void {
+        const idx = quad_index(x, y);
+        self.data[idx][quad_offset(x, y)] = val;
+        self.dirty[idx] = true;
     }
-    pub fn tilt_enable(self: *Device, sensor: u8) void {
-        _ = c.monome_tilt_enable(self.m_dev, sensor);
-    }
-    pub fn tilt_disable(self: *Device, sensor: u8) void {
-        _ = c.monome_tilt_disable(self.m_dev, sensor);
-    }
-    pub fn grid_set_led(self: *Device, x: u8, y: u8, val: u8) void {
-        const q = quad_index(x, y);
-        self.data[q][quad_offset(x, y)] = val;
-        self.dirty[q] = true;
-    }
-    pub fn grid_all_led(self: *Device, val: u8) void {
-        var q: u8 = 0;
-        while (q < self.quads) : (q += 1) {
+    pub fn grid_all_led(self: *Monome, val: u8) void {
+        var idx: u8 = 0;
+        while (idx < self.quads) : (idx += 1) {
             var i: u8 = 0;
             while (i < 64) : (i += 1) {
-                self.data[q][i] = val;
+                self.data[idx][i] = val;
             }
-            self.dirty[q] = true;
+            self.dirty[idx] = true;
         }
     }
-    pub fn arc_set_led(self: *Device, ring: u8, led: u8, val: u8) void {
+    pub fn set_rotation(self: *Monome, rotation: u16) void {
+        var message = c.lo_message_new();
+        _ = c.lo_message_add_int32(message, rotation);
+        _ = c.lo_send_message(self.addr, "/sys/rotation", message);
+        c.lo_message_free(message);
+    }
+    pub fn tilt_set(self: *Monome, sensor: u8, enabled: u8) void {
+        var message = c.lo_message_new();
+        _ = c.lo_message_add_int32(message, sensor);
+        _ = c.lo_message_add_int32(message, enabled);
+        _ = c.lo_send_message(self.addr, "/tilt/set", message);
+        c.lo_message_free(message);
+    }
+    pub fn arc_set_led(self: *Monome, ring: u8, led: u8, val: u8) void {
         self.data[ring][led] = val;
         self.dirty[ring] = true;
     }
-    pub fn refresh(self: *Device) void {
-        const quad_xoff = [_]u8{ 0, 8, 0, 8 };
-        const quad_yoff = [_]u8{ 0, 0, 8, 8 };
-        var quad: u8 = 0;
-        while (quad < self.quads) : (quad += 1) {
-            if (self.dirty[quad]) {
-                switch (self.dev_type) {
-                    .Arc => _ = c.monome_led_ring_map(self.m_dev, quad, &self.data[quad]),
-                    .Grid => _ = c.monome_led_level_map(self.m_dev, quad_xoff[quad], quad_yoff[quad], &self.data[quad]),
-                }
+    pub fn arc_all_led(self: *Monome, val: u8) void {
+        var idx: u8 = 0;
+        while (idx < 4) : (idx += 1) {
+            for (self.data[idx]) |*datum| {
+                datum = val;
             }
-            self.dirty[quad] = false;
+            self.dirty[idx] = true;
         }
     }
-    pub fn intensity(self: *Device, level: u8) void {
-        if (level > 15) {
-            _ = c.monome_led_intensity(self.m_dev, 15);
-        } else {
-            _ = c.monome_led_intensity(self.m_dev, level);
+    pub fn intensity(self: *Monome, level: u8) void {
+        var message = c.lo_message_new();
+        _ = c.lo_message_add_int32(message, level);
+        _ = c.lo_send_message(self.addr, "/grid/led/intensity", message);
+        c.lo_message_free(message);
+    }
+    pub fn refresh(self: *Monome) void {
+        const xoff = [4]u8{ 0, 8, 0, 8 };
+        const yoff = [4]u8{ 0, 0, 8, 8 };
+        for (self.dirty, 0..4) |dirty, idx| {
+            if (!dirty) continue;
+            var message = c.lo_message_new();
+            switch (self.m_type) {
+                .Grid => {
+                    _ = c.lo_message_add_int32(message, xoff[idx]);
+                    _ = c.lo_message_add_int32(message, yoff[idx]);
+                },
+                .Arc => _ = c.lo_message_add_int32(message, @intCast(i32, idx)),
+            }
+            for (self.data[idx]) |datum| _ = c.lo_message_add_int32(message, datum);
+            switch (self.m_type) {
+                .Grid => _ = c.lo_send_message(self.addr, "/grid/led/level/map", message),
+                .Arc => _ = c.lo_send_message(self.addr, "/ring/map", message),
+            }
+            c.lo_message_free(message);
+            self.dirty[idx] = false;
         }
     }
 };
+
+pub fn init(alloc_pointer: std.mem.Allocator, port: u16) !void {
+    allocator = alloc_pointer;
+    devices = try allocator.alloc(Monome, 8);
+    for (devices, 0..) |*device, i| {
+        device.* = .{};
+        device.id = @intCast(u8, i);
+        device.from_port = device.id + 1 + port;
+        const from_port_str = try std.fmt.allocPrintZ(allocator, "{d}", .{device.from_port});
+        defer allocator.free(from_port_str);
+        device.thread = c.lo_server_thread_new(from_port_str, osc.lo_error_handler) orelse return error.Fail;
+        _ = c.lo_server_thread_add_method(device.thread, "/sys/size", "ii", handle_size, &device.id);
+        _ = c.lo_server_thread_add_method(device.thread, "/grid/grid/key", "iii", handle_grid_key, &device.id);
+        _ = c.lo_server_thread_add_method(device.thread, "/arc/enc/key", "ii", handle_arc_key, &device.id);
+        _ = c.lo_server_thread_add_method(device.thread, "/arc/enc/delta", "ii", handle_delta, &device.id);
+        _ = c.lo_server_thread_add_method(device.thread, "/grid/tilt", "iiii", handle_tilt, &device.id);
+        _ = c.lo_server_thread_start(device.thread);
+    }
+}
+
+pub fn deinit() void {
+    for (devices) |device| {
+        if (device.to_port) |port| allocator.free(port);
+        if (device.name) |n| allocator.free(n);
+        c.lo_server_thread_free(device.thread);
+    }
+    allocator.free(devices);
+}
+
+pub fn add(name: []const u8, dev_type: []const u8, port: i32) void {
+    var free: ?*Monome = null;
+    for (devices) |*device| {
+        if (free == null and device.connected == false and device.name == null) free = device;
+        const n = device.name orelse continue;
+        if (std.mem.eql(u8, n, name)) {
+            device.connected = true;
+            const event = .{
+                .Monome_Add = .{
+                    .dev = device,
+                },
+            };
+            events.post(event);
+            device.set_port();
+            return;
+        }
+    }
+    if (free) |device| {
+        var name_copy = allocator.alloc(u8, name.len) catch unreachable;
+        std.mem.copyForwards(u8, name_copy, name);
+        device.name = name_copy;
+        const port_str = std.fmt.allocPrint(allocator, "{d}\x00", .{port}) catch unreachable;
+        device.to_port = port_str;
+        const addr = c.lo_address_new("localhost", port_str.ptr);
+        device.addr = addr;
+        if (std.mem.eql(u8, dev_type[0..10], "monome arc")) {
+            device.m_type = .Arc;
+            device.quads = 4;
+            device.connected = true;
+            const event = .{
+                .Monome_Add = .{ .dev = device },
+            };
+            events.post(event);
+            device.set_port();
+        } else {
+            device.m_type = .Grid;
+            device.set_port();
+            device.get_size();
+        }
+    } else {
+        @setCold(true);
+        std.debug.print("too many devices! not adding {s}\n", .{name});
+    }
+}
+
+pub fn remove(name: []const u8) void {
+    for (devices) |*device| {
+        const n = device.name orelse continue;
+        if (std.mem.eql(u8, n, name)) {
+            device.connected = false;
+            const event = .{
+                .Monome_Remove = .{
+                    .id = device.id,
+                },
+            };
+            events.post(event);
+            return;
+        }
+    }
+    @setCold(true);
+    std.debug.print("trying to remove device {s} which was not added!\n", .{name});
+}
+
+pub fn handle_add(
+    path: [*c]const u8,
+    types: [*c]const u8,
+    argv: [*c][*c]c.lo_arg,
+    argc: c_int,
+    msg: c.lo_message,
+    user_data: c.lo_message,
+) callconv(.C) c_int {
+    _ = user_data;
+    _ = msg;
+    _ = argc;
+    _ = types;
+    const id = unwrap_string(&argv[0].*.s);
+    const dev_t = unwrap_string(&argv[1].*.s);
+    const port = argv[2].*.i;
+    add(id, dev_t, port);
+    const unwound_path = unwrap_string(path);
+    if (std.mem.eql(u8, "/serialosc/add", unwound_path)) osc.send_notify();
+    return 0;
+}
+
+pub fn handle_remove(
+    path: [*c]const u8,
+    types: [*c]const u8,
+    argv: [*c][*c]c.lo_arg,
+    argc: c_int,
+    msg: c.lo_message,
+    user_data: c.lo_message,
+) callconv(.C) c_int {
+    _ = user_data;
+    _ = msg;
+    _ = argc;
+    _ = types;
+    _ = path;
+    const id = unwrap_string(&argv[0].*.s);
+    remove(id);
+    return 0;
+}
+
+inline fn unwrap_string(str: [*c]const u8) []const u8 {
+    var slice = @ptrCast([*]const u8, str);
+    var len: usize = 0;
+    while (slice[len] != 0) : (len += 1) {}
+    return slice[0..len];
+}
 
 inline fn quad_index(x: u8, y: u8) u8 {
     switch (y) {
@@ -232,56 +263,127 @@ inline fn quad_offset(x: u8, y: u8) u8 {
     return ((y & 7) * 8) + (x & 7);
 }
 
-fn loop(self: *Device) !void {
-    const fd = c.monome_get_fd(self.m_dev);
-    var fds = [1]std.os.pollfd{.{ .fd = fd, .events = std.os.POLL.IN, .revents = 0 }};
-    var ev: c.monome_event = undefined;
-    while (!self.quit) {
-        if (c.monome_event_next(self.m_dev, &ev) > 0) {
-            switch (ev.event_type) {
-                c.MONOME_BUTTON_UP => {
-                    const x = ev.unnamed_0.grid.x;
-                    const y = ev.unnamed_0.grid.y;
-                    const event = .{ .Grid_Key = .{ .id = self.id, .x = x, .y = y, .state = 0 } };
-                    events.post(event);
-                },
-                c.MONOME_BUTTON_DOWN => {
-                    const x = ev.unnamed_0.grid.x;
-                    const y = ev.unnamed_0.grid.y;
-                    const event = .{ .Grid_Key = .{ .id = self.id, .x = x, .y = y, .state = 1 } };
-                    events.post(event);
-                },
-                c.MONOME_ENCODER_DELTA => {
-                    const ring = ev.unnamed_0.encoder.number;
-                    const delta = ev.unnamed_0.encoder.delta;
-                    const event = .{ .Arc_Encoder = .{ .id = self.id, .ring = ring, .delta = delta } };
-                    events.post(event);
-                },
-                c.MONOME_ENCODER_KEY_UP => {
-                    const ring = ev.unnamed_0.encoder.number;
-                    const event = .{ .Arc_Key = .{ .id = self.id, .ring = ring, .state = 0 } };
-                    events.post(event);
-                },
-                c.MONOME_ENCODER_KEY_DOWN => {
-                    const ring = ev.unnamed_0.encoder.number;
-                    const event = .{ .Arc_Key = .{ .id = self.id, .ring = ring, .state = 1 } };
-                    events.post(event);
-                },
-                c.MONOME_TILT => {
-                    const sensor = ev.unnamed_0.tilt.sensor;
-                    const x = ev.unnamed_0.tilt.x;
-                    const y = ev.unnamed_0.tilt.y;
-                    const z = ev.unnamed_0.tilt.z;
-                    const event = .{ .Grid_Tilt = .{ .id = self.id, .sensor = sensor, .x = x, .y = y, .z = z } };
-                    events.post(event);
-                },
-                else => {
-                    @setCold(true);
-                    std.debug.print("got bad event type: {d}", .{ev.event_type});
-                },
-            }
-        } else {
-            _ = try std.os.poll(&fds, 1000);
-        }
+fn handle_size(
+    path: [*c]const u8,
+    types: [*c]const u8,
+    argv: [*c][*c]c.lo_arg,
+    argc: c_int,
+    msg: c.lo_message,
+    user_data: c.lo_message,
+) callconv(.C) c_int {
+    _ = msg;
+    _ = argc;
+    _ = types;
+    _ = path;
+    const i = @ptrCast(*u8, user_data);
+    devices[i.*].cols = @intCast(u8, argv[0].*.i);
+    devices[i.*].rows = @intCast(u8, argv[1].*.i);
+    devices[i.*].quads = (devices[i.*].cols * devices[i.*].rows) / 64;
+    if (!devices[i.*].connected) {
+        devices[i.*].connected = true;
+        const event = .{
+            .Monome_Add = .{ .dev = &devices[i.*] },
+        };
+        events.post(event);
     }
+    return 0;
+}
+
+fn handle_grid_key(
+    path: [*c]const u8,
+    types: [*c]const u8,
+    argv: [*c][*c]c.lo_arg,
+    argc: c_int,
+    msg: c.lo_message,
+    user_data: c.lo_message,
+) callconv(.C) c_int {
+    _ = msg;
+    _ = argc;
+    _ = types;
+    _ = path;
+    const i = @ptrCast(*u8, user_data);
+    const event = .{
+        .Grid_Key = .{
+            .id = i.*,
+            .x = argv[0].*.i,
+            .y = argv[1].*.i,
+            .state = argv[2].*.i,
+        },
+    };
+    events.post(event);
+    return 0;
+}
+
+fn handle_arc_key(
+    path: [*c]const u8,
+    types: [*c]const u8,
+    argv: [*c][*c]c.lo_arg,
+    argc: c_int,
+    msg: c.lo_message,
+    user_data: c.lo_message,
+) callconv(.C) c_int {
+    _ = msg;
+    _ = argc;
+    _ = types;
+    _ = path;
+    const i = @ptrCast(*u8, user_data);
+    const event = .{
+        .Arc_Key = .{
+            .id = i.*,
+            .ring = argv[0].*.i,
+            .state = argv[1].*.i,
+        },
+    };
+    events.post(event);
+    return 0;
+}
+
+fn handle_delta(
+    path: [*c]const u8,
+    types: [*c]const u8,
+    argv: [*c][*c]c.lo_arg,
+    argc: c_int,
+    msg: c.lo_message,
+    user_data: c.lo_message,
+) callconv(.C) c_int {
+    _ = msg;
+    _ = argc;
+    _ = types;
+    _ = path;
+    const i = @ptrCast(*u8, user_data);
+    const event = .{
+        .Arc_Encoder = .{
+            .id = i.*,
+            .ring = argv[0].*.i,
+            .delta = argv[1].*.i,
+        },
+    };
+    events.post(event);
+    return 0;
+}
+
+fn handle_tilt(
+    path: [*c]const u8,
+    types: [*c]const u8,
+    argv: [*c][*c]c.lo_arg,
+    argc: c_int,
+    msg: c.lo_message,
+    user_data: c.lo_message,
+) callconv(.C) c_int {
+    _ = msg;
+    _ = argc;
+    _ = types;
+    _ = path;
+    const i = @ptrCast(*u8, user_data);
+    const event = .{
+        .Grid_Tilt = .{
+            .id = i.*,
+            .sensor = argv[0].*.i,
+            .x = argv[1].*.i,
+            .y = argv[2].*.i,
+            .z = argv[3].*.i,
+        },
+    };
+    events.post(event);
+    return 0;
 }

@@ -1,6 +1,6 @@
 const std = @import("std");
 const spindle = @import("spindle.zig");
-const osc = @import("osc.zig");
+const osc = @import("serialosc.zig");
 const monome = @import("monome.zig");
 const screen = @import("screen.zig");
 const clock = @import("clock.zig");
@@ -64,7 +64,7 @@ const event_osc = struct {
 };
 
 const event_monome_add = struct {
-    dev: *monome.Device = undefined,
+    dev: *monome.Monome = undefined,
     // device
 };
 
@@ -75,15 +75,15 @@ const event_monome_remove = struct {
 
 const event_grid_key = struct {
     id: usize = undefined,
-    x: u32 = undefined,
-    y: u32 = undefined,
-    state: u8 = undefined,
+    x: i32 = undefined,
+    y: i32 = undefined,
+    state: i32 = undefined,
     // grid_key
 };
 
 const event_grid_tilt = struct {
     id: usize = undefined,
-    sensor: u32 = undefined,
+    sensor: i32 = undefined,
     x: i32 = undefined,
     y: i32 = undefined,
     z: i32 = undefined,
@@ -92,15 +92,15 @@ const event_grid_tilt = struct {
 
 const event_arc_delta = struct {
     id: usize = undefined,
-    ring: u32 = undefined,
+    ring: i32 = undefined,
     delta: i32 = undefined,
     // arc_delta
 };
 
 const event_arc_key = struct {
     id: usize = undefined,
-    ring: u32 = undefined,
-    state: u8 = undefined,
+    ring: i32 = undefined,
+    state: i32 = undefined,
     // arc_key
 };
 
@@ -273,9 +273,9 @@ pub fn loop() !void {
 pub fn free(event: *Data) void {
     switch (event.*) {
         .OSC => |e| {
-            allocator.free(e.path);
             allocator.free(e.from_host);
             allocator.free(e.from_port);
+            allocator.free(e.path);
             allocator.free(e.msg);
         },
         .Exec_Code_Line => |e| {
