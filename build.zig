@@ -40,7 +40,6 @@ pub fn build(b: *std.Build) void {
         exe.linkSystemLibrary("dns_sd");
     }
     exe.linkSystemLibrary("LIBLO");
-    exe.linkSystemLibrary("monome");
     exe.linkSystemLibrary("SDL2");
     exe.linkSystemLibrary("SDL2_ttf");
     exe.linkSystemLibrary("rtmidi");
