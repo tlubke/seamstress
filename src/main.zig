@@ -5,17 +5,13 @@ const spindle = @import("spindle.zig");
 const events = @import("events.zig");
 const metros = @import("metros.zig");
 const clocks = @import("clock.zig");
-const dev_monitor = switch (builtin.target.os.tag) {
-    .linux => @import("dev_monitor_linux.zig"),
-    else => @import("dev_monitor_macos.zig"),
-};
-const osc = @import("osc.zig");
+const osc = @import("serialosc.zig");
 const input = @import("input.zig");
 const screen = @import("screen.zig");
 const midi = @import("midi.zig");
 const c = @import("c_includes.zig").imported;
 
-const VERSION = std.builtin.Version{ .major = 0, .minor = 6, .patch = 5 };
+const VERSION = std.builtin.Version{ .major = 0, .minor = 7, .patch = 0 };
 
 pub fn main() !void {
     defer std.debug.print("seamstress shutdown complete\n", .{});
@@ -52,10 +48,6 @@ pub fn main() !void {
     std.debug.print("init spindle\n", .{});
     try spindle.init(config, allocator);
     defer spindle.deinit();
-
-    std.debug.print("init device monitor\n", .{});
-    try dev_monitor.init(allocator);
-    defer dev_monitor.deinit();
 
     std.debug.print("init MIDI\n", .{});
     try midi.init(allocator);

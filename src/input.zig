@@ -1,6 +1,5 @@
 const std = @import("std");
 const events = @import("events.zig");
-const c = @import("c_includes.zig").imported;
 
 var quit = false;
 var pid: std.Thread = undefined;
@@ -25,7 +24,7 @@ fn input_run() !void {
     var fds = [1]std.os.pollfd{
         .{ .fd = 0, .events = std.os.POLL.IN, .revents = 0 },
     };
-    set_signal();
+    try set_signal();
     while (!quit) {
         const data = try std.os.poll(&fds, 1);
         if (data == 0) continue;
@@ -48,11 +47,11 @@ fn input_run() !void {
     events.post(.{ .Quit = {} });
 }
 
-fn set_signal() void {
-    _ = c.signal(c.SIGINT, signal_handler);
+fn set_signal() !void {
+    try std.os.sigaction(std.os.SIG.INT, &.{ .handler = .{ .handler = signal_handler }, .mask = std.os.SIG.INT, .flags = 0 }, null);
 }
 
 fn signal_handler(signal: c_int) callconv(.C) void {
     _ = signal;
-    quit = true;
+    events.post(.{ .Quit = {} });
 }

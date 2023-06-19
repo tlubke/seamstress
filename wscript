@@ -10,7 +10,7 @@ def options(ctx):
 
 def configure(ctx):
     ctx.load('compiler_c')
-    ctx.find_program('zig', var='ZIG', mandatory=False)
+    ctx.find_program('zig')
 
     def linux_check_lua(lua_versions):
         for lua in lua_versions:
@@ -35,11 +35,6 @@ def configure(ctx):
         ctx.env.LIB_LO = 'lo'
         ctx.env.LIBPATH_LO = '/opt/homebrew/lib'
         ctx.env.LDFLAGS_LO = '-llo'
-
-        ctx.env.INCLUDES_MONOME = '/opt/homebrew/include'
-        ctx.env.LIB_MONOME = 'monome'
-        ctx.env.LIBPATH_MONOME = '/opt/homebrew/lib'
-        ctx.env.LDFLAGS_MONOME = '-lmonome'
 
         ctx.env.INCLUDES_SDL = '/opt/homebrew/include'
         ctx.env.LIB_SDL = 'SDL2'
@@ -86,13 +81,6 @@ def configure(ctx):
     ctx.check_cc(
         mandatory = True,
         quote = 0,
-        lib = "monome",
-        use = "MONOME",
-        msg = "Checking for libmonome"
-    )
-    ctx.check_cc(
-        mandatory = True,
-        quote = 0,
         lib = "rtmidi",
         use = "RTMIDI",
         msg = "Checking for rtmidi"
@@ -100,7 +88,7 @@ def configure(ctx):
     return
 
 def build(ctx):
-    ctx(rule='${ZIG} build -Doptimize=ReleaseFast')
+    ctx(rule='${ZIG} build -Doptimize=ReleaseFast', always=True)
     start_dir = ctx.path.find_dir('lua')
     ctx.install_files('${PREFIX}/share/seamstress/lua',
                       start_dir.ant_glob('**/*.lua'),
