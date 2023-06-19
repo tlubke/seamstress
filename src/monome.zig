@@ -26,6 +26,10 @@ pub const Monome = struct {
         _ = c.lo_message_add_int32(message, self.from_port);
         _ = c.lo_send_message(self.addr, "/sys/port", message);
         c.lo_message_free(message);
+        message = c.lo_message_new();
+        _ = c.lo_message_add_string(message, "/monome");
+        _ = c.lo_send_message(self.addr, "/sys/prefix", message);
+        c.lo_message_free(message);
     }
     fn get_size(self: *Monome) void {
         var message = c.lo_message_new();
@@ -59,7 +63,7 @@ pub const Monome = struct {
         var message = c.lo_message_new();
         _ = c.lo_message_add_int32(message, sensor);
         _ = c.lo_message_add_int32(message, enabled);
-        _ = c.lo_send_message(self.addr, "/tilt/set", message);
+        _ = c.lo_send_message(self.addr, "/monome/tilt/set", message);
         c.lo_message_free(message);
     }
     pub fn arc_set_led(self: *Monome, ring: u8, led: u8, val: u8) void {
@@ -78,14 +82,15 @@ pub const Monome = struct {
     pub fn intensity(self: *Monome, level: u8) void {
         var message = c.lo_message_new();
         _ = c.lo_message_add_int32(message, level);
-        _ = c.lo_send_message(self.addr, "/grid/led/intensity", message);
+        _ = c.lo_send_message(self.addr, "/monome/grid/led/intensity", message);
         c.lo_message_free(message);
     }
     pub fn refresh(self: *Monome) void {
         const xoff = [4]u8{ 0, 8, 0, 8 };
         const yoff = [4]u8{ 0, 0, 8, 8 };
-        for (self.dirty, 0..4) |dirty, idx| {
-            if (!dirty) continue;
+        var idx: usize = 0;
+        while (idx < self.quads) : (idx += 1) {
+            if (!self.dirty[idx]) continue;
             var message = c.lo_message_new();
             switch (self.m_type) {
                 .Grid => {
@@ -94,10 +99,11 @@ pub const Monome = struct {
                 },
                 .Arc => _ = c.lo_message_add_int32(message, @intCast(i32, idx)),
             }
-            for (self.data[idx]) |datum| _ = c.lo_message_add_int32(message, datum);
+            var j: usize = 0;
+            while (j < 64) : (j += 1) _ = c.lo_message_add_int32(message, self.data[idx][j]);
             switch (self.m_type) {
-                .Grid => _ = c.lo_send_message(self.addr, "/grid/led/level/map", message),
-                .Arc => _ = c.lo_send_message(self.addr, "/ring/map", message),
+                .Grid => _ = c.lo_send_message(self.addr, "/monome/grid/led/level/map", message),
+                .Arc => _ = c.lo_send_message(self.addr, "/monome/ring/map", message),
             }
             c.lo_message_free(message);
             self.dirty[idx] = false;
@@ -116,10 +122,10 @@ pub fn init(alloc_pointer: std.mem.Allocator, port: u16) !void {
         defer allocator.free(from_port_str);
         device.thread = c.lo_server_thread_new(from_port_str, osc.lo_error_handler) orelse return error.Fail;
         _ = c.lo_server_thread_add_method(device.thread, "/sys/size", "ii", handle_size, &device.id);
-        _ = c.lo_server_thread_add_method(device.thread, "/grid/grid/key", "iii", handle_grid_key, &device.id);
-        _ = c.lo_server_thread_add_method(device.thread, "/arc/enc/key", "ii", handle_arc_key, &device.id);
-        _ = c.lo_server_thread_add_method(device.thread, "/arc/enc/delta", "ii", handle_delta, &device.id);
-        _ = c.lo_server_thread_add_method(device.thread, "/grid/tilt", "iiii", handle_tilt, &device.id);
+        _ = c.lo_server_thread_add_method(device.thread, "/monome/grid/key", "iii", handle_grid_key, &device.id);
+        _ = c.lo_server_thread_add_method(device.thread, "/monome/enc/key", "ii", handle_arc_key, &device.id);
+        _ = c.lo_server_thread_add_method(device.thread, "/monome/enc/delta", "ii", handle_delta, &device.id);
+        _ = c.lo_server_thread_add_method(device.thread, "/monome/tilt", "iiii", handle_tilt, &device.id);
         _ = c.lo_server_thread_start(device.thread);
     }
 }
