@@ -465,18 +465,12 @@ _seamstress.midi = {
   event = function (id, timestamp, bytes)
     local d = Midi.inputs[id]
     if d ~= nil then
-      local bits = {}
-      local bit, i = nil, 1
-      repeat
-        bit = string.byte(bytes, i)
-        bits[i] = bit
-      until bit == nil
       if d.event ~= nil then
-        d.event(timestamp, bits)
+        d.event(timestamp, bytes)
       end
       if d.port then
         if Midi.vinports[d.port].event then
-          Midi.vinports[d.port].event(timestamp, bits)
+          Midi.vinports[d.port].event(timestamp, bytes)
         end
       end
     else

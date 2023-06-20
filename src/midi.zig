@@ -23,26 +23,28 @@ pub const Device = union(Dev_t) {
         thread: std.Thread = undefined,
         buf: [1024]u8 = undefined,
         name: [:0]const u8,
-        fn read(self: *input_dev) !bool {
+        fn read(self: *input_dev) !void {
             var len: usize = 1024;
-            const timestamp = c.rtmidi_in_get_message(self.ptr, &self.buf, &len);
-            if (self.ptr.*.ok != true) {
-                const err = std.mem.span(self.ptr.*.msg);
-                std.debug.print("error in device {s}: {s}\n", .{ self.name, err });
-                self.quit = true;
-                return false;
+            while (len > 0) {
+                len = 1024;
+                const timestamp = c.rtmidi_in_get_message(self.ptr, &self.buf, &len);
+                if (self.ptr.*.ok != true) {
+                    const err = std.mem.span(self.ptr.*.msg);
+                    std.debug.print("error in device {s}: {s}\n", .{ self.name, err });
+                    self.quit = true;
+                    return;
+                }
+                if (len == 0) break;
+                var line = try allocator.alloc(u8, len);
+                std.mem.copyForwards(u8, line, self.buf[0..len]);
+                const event = .{ .MIDI = .{ .message = line, .timestamp = timestamp, .id = self.id } };
+                events.post(event);
             }
-            if (len == 0) return false;
-            var line = try allocator.alloc(u8, len);
-            std.mem.copyForwards(u8, line, self.buf[0..len]);
-            const event = .{ .MIDI = .{ .message = line, .timestamp = timestamp, .id = self.id } };
-            events.post(event);
-            return true;
         }
         fn loop(self: *input_dev) !void {
             while (!self.quit) {
-                const did_read = try self.read();
-                if (!did_read) std.time.sleep(std.time.ns_per_us * 300);
+                try self.read();
+                std.time.sleep(std.time.ns_per_ms);
             }
             Device.deinit(Dev_t.Input, self.id);
         }

@@ -808,7 +808,12 @@ pub fn midi_event(id: u32, timestamp: f64, bytes: []const u8) !void {
     try push_lua_func("midi", "event");
     lvm.pushInteger(id);
     lvm.pushNumber(timestamp);
-    _ = lvm.pushBytes(bytes);
+    lvm.createTable(@intCast(i32, bytes.len), 0);
+    var i: usize = 0;
+    while (i < bytes.len) : (i += 1) {
+        lvm.pushInteger(bytes[i]);
+        lvm.rawSetIndex(-2, @intCast(c_longlong, i + 1));
+    }
     try docall(&lvm, 3, 0);
 }
 
