@@ -119,10 +119,6 @@ const event_metro = struct {
 
 const event_midi_add = struct {
     dev: *midi.Device = undefined,
-    dev_type: midi.Dev_t = undefined,
-    id: u32 = undefined,
-    name: [:0]const u8 = undefined,
-    // midi_add
 };
 
 const event_midi_remove = struct {
@@ -281,9 +277,6 @@ pub fn free(event: *Data) void {
         .Exec_Code_Line => |e| {
             allocator.free(e.line);
         },
-        .MIDI_Add => |e| {
-            allocator.free(e.name);
-        },
         .MIDI => |e| {
             allocator.free(e.message);
         },
@@ -348,7 +341,7 @@ fn handle(event: *Data) !void {
         .Screen_Key => |e| try spindle.screen_key(e.scancode),
         .Screen_Check => screen.check(),
         .Metro => |e| try spindle.metro_event(e.id, e.stage),
-        .MIDI_Add => |e| try spindle.midi_add(e.dev, e.dev_type, e.id, e.name),
+        .MIDI_Add => |e| try spindle.midi_add(e.dev),
         .MIDI_Remove => |e| try spindle.midi_remove(e.dev_type, e.id),
         .MIDI => |e| try spindle.midi_event(e.id, e.timestamp, e.message),
         .Clock_Resume => |e| try spindle.resume_clock(e.id),

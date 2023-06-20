@@ -450,14 +450,14 @@ _seamstress.midi = {
       if Midi.inputs[id] then
         Midi.remove(Midi.inputs[id])
         if Midi.inputs[id].remove then
-          Midi.inputs[id].remove()
+          Midi.inputs[id]:remove()
         end
       end
     else
       if Midi.outputs[id] then
         Midi.remove(Midi.outputs[id])
         if Midi.outputs[id].remove then
-          Midi.outputs[id].remove()
+          Midi.outputs[id]:remove()
         end
       end
     end

@@ -559,7 +559,7 @@ fn midi_write(l: *Lua) i32 {
         _ = l.getTable(2);
         msg[@intCast(usize, i - 1)] = @intCast(u8, l.toInteger(-1) catch unreachable);
     }
-    dev.Output.write(msg);
+    midi.Device.Guts.output.write(dev, msg);
     allocator.free(msg);
     l.setTop(0);
     return 0;
@@ -782,14 +782,14 @@ pub fn metro_event(id: u8, stage: i64) !void {
     try docall(&lvm, 2, 0);
 }
 
-pub fn midi_add(dev: *midi.Device, dev_type: midi.Dev_t, id: u32, name: [:0]const u8) !void {
+pub fn midi_add(dev: *midi.Device) !void {
     try push_lua_func("midi", "add");
-    _ = lvm.pushString(name[0 .. name.len - 1 :0]);
-    switch (dev_type) {
+    _ = lvm.pushString(dev.name.?);
+    switch (dev.guts) {
         midi.Dev_t.Input => lvm.pushBoolean(true),
         midi.Dev_t.Output => lvm.pushBoolean(false),
     }
-    lvm.pushInteger(id);
+    lvm.pushInteger(dev.id + 1);
     lvm.pushLightUserdata(dev);
     try docall(&lvm, 4, 0);
 }
@@ -800,13 +800,13 @@ pub fn midi_remove(dev_type: midi.Dev_t, id: u32) !void {
         midi.Dev_t.Input => lvm.pushBoolean(true),
         midi.Dev_t.Output => lvm.pushBoolean(false),
     }
-    lvm.pushInteger(id);
+    lvm.pushInteger(id + 1);
     try docall(&lvm, 2, 0);
 }
 
 pub fn midi_event(id: u32, timestamp: f64, bytes: []const u8) !void {
     try push_lua_func("midi", "event");
-    lvm.pushInteger(id);
+    lvm.pushInteger(id + 1);
     lvm.pushNumber(timestamp);
     lvm.createTable(@intCast(i32, bytes.len), 0);
     var i: usize = 0;

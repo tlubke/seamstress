@@ -5,200 +5,115 @@ const events = @import("events.zig");
 var allocator: std.mem.Allocator = undefined;
 var thread: std.Thread = undefined;
 var quit = false;
-var in_list = List{ .head = null, .tail = null, .size = 0 };
-var out_list = List{ .head = null, .tail = null, .size = 0 };
+var devices: []Device = undefined;
 var midi_in: *c.RtMidiWrapper = undefined;
 var midi_out: *c.RtMidiWrapper = undefined;
-var id_counter: u32 = 0;
-
-pub const Dev_t = enum { Input, Output };
 
 const RtMidiPrefix = "seamstress";
 
-pub const Device = union(Dev_t) {
-    const input_dev = struct {
-        id: u32,
-        quit: bool,
-        ptr: *c.RtMidiWrapper,
-        thread: std.Thread = undefined,
-        buf: [1024]u8 = undefined,
-        name: [:0]const u8,
-        fn read(self: *input_dev) !void {
-            var len: usize = 1024;
-            while (len > 0) {
-                len = 1024;
-                const timestamp = c.rtmidi_in_get_message(self.ptr, &self.buf, &len);
-                if (self.ptr.*.ok != true) {
-                    const err = std.mem.span(self.ptr.*.msg);
-                    std.debug.print("error in device {s}: {s}\n", .{ self.name, err });
-                    self.quit = true;
-                    return;
-                }
-                if (len == 0) break;
-                var line = try allocator.alloc(u8, len);
-                std.mem.copyForwards(u8, line, self.buf[0..len]);
-                const event = .{ .MIDI = .{ .message = line, .timestamp = timestamp, .id = self.id } };
-                events.post(event);
-            }
-        }
-        fn loop(self: *input_dev) !void {
-            while (!self.quit) {
-                try self.read();
-                std.time.sleep(std.time.ns_per_ms);
-            }
-            Device.deinit(Dev_t.Input, self.id);
-        }
-    };
-    const output_dev = struct {
-        id: u32,
-        ptr: *c.RtMidiWrapper,
-        name: [:0]const u8,
-        pub fn write(self: *output_dev, message: []const u8) void {
-            _ = c.rtmidi_out_send_message(self.ptr, message.ptr, @intCast(c_int, message.len));
-            if (self.ptr.*.ok != true) {
-                const err = std.mem.span(self.ptr.*.msg);
-                std.debug.print("error in device {s}: {s}\n", .{ self.name, err });
-                Device.deinit(Dev_t.Output, self.id);
-            }
-        }
-    };
-    Input: input_dev,
-    Output: output_dev,
-    fn deinit(dev_type: Dev_t, id: u32) void {
-        switch (dev_type) {
-            .Input => {
-                const dev = in_list.remove(id);
-                if (dev) |d| {
-                    d.Input.quit = true;
-                    d.Input.thread.join();
-                    const event = .{ .MIDI_Remove = .{ .id = d.Input.id, .dev_type = .Input } };
+pub const Dev_t = enum { Input, Output };
+pub const Device = struct {
+    id: u8,
+    connected: bool = false,
+    ptr: ?*c.RtMidiWrapper = null,
+    name: ?[:0]const u8 = null,
+    guts: Guts = .{ .Output = .{} },
+
+    pub const Guts = union(Dev_t) {
+        Input: input,
+        Output: output,
+
+        const input = struct {
+            thread: ?std.Thread = null,
+            buf: [1024]u8 = undefined,
+            fn read(self: *Device) !void {
+                var ptr = self.ptr orelse return error.Fail;
+                var len: usize = 1024;
+                while (len > 0) {
+                    len = 1024;
+                    const timestamp = c.rtmidi_in_get_message(ptr, &self.guts.Input.buf, &len);
+                    if (!ptr.*.ok) {
+                        const err = std.mem.span(ptr.*.msg);
+                        std.debug.print("error in device {s}: {s}\n", .{ self.name.?, err });
+                        self.connected = false;
+                        return;
+                    }
+                    if (len == 0) break;
+                    var line = try allocator.alloc(u8, len);
+                    std.mem.copyForwards(u8, line, self.guts.Input.buf[0..len]);
+                    const event = .{
+                        .MIDI = .{
+                            .message = line,
+                            .timestamp = timestamp,
+                            .id = self.id,
+                        },
+                    };
                     events.post(event);
-                    allocator.free(d.Input.name);
-                    c.rtmidi_close_port(d.Input.ptr);
-                    c.rtmidi_in_free(d.Input.ptr);
-                    allocator.destroy(d);
                 }
-            },
-            .Output => {
-                const dev = out_list.remove(id);
-                if (dev) |d| {
-                    const event = .{ .MIDI_Remove = .{ .id = d.Output.id, .dev_type = .Output } };
-                    events.post(event);
-                    allocator.free(d.Output.name);
-                    c.rtmidi_close_port(d.Output.ptr);
-                    c.rtmidi_out_free(d.Output.ptr);
-                    allocator.destroy(d);
+            }
+            fn loop(self: *Device) !void {
+                while (self.connected) {
+                    try Device.Guts.input.read(self);
+                    std.time.sleep(std.time.ns_per_us * 300);
                 }
-            },
-        }
-    }
+            }
+        };
+        pub const output = struct {
+            pub fn write(self: *Device, message: []const u8) void {
+                _ = c.rtmidi_out_send_message(self.ptr.?, message.ptr, @intCast(c_int, message.len));
+                if (!self.ptr.?.*.ok) {
+                    const err = std.mem.span(self.ptr.?.*.msg);
+                    std.debug.print("error in device {s}: {s}\n", .{ self.name.?, err });
+                    self.connected = false;
+                }
+            }
+        };
+    };
 };
 
-const List = struct {
-    const Node = struct {
-        next: ?*Node,
-        prev: ?*Node,
-        dev: *Device,
-        // node
-    };
-    head: ?*Node,
-    tail: ?*Node,
-    size: u32,
-    fn find(self: *List, name: []const u8) bool {
-        var node = self.head;
-        while (node) |n| {
-            switch (n.dev.*) {
-                .Input => if (std.mem.eql(u8, name, n.dev.Input.name)) return true,
-                .Output => if (std.mem.eql(u8, name, n.dev.Output.name)) return true,
+fn remove(id: usize) void {
+    devices[id].connected = false;
+    switch (devices[id].guts) {
+        .Input => {
+            if (devices[id].guts.Input.thread) |pid| pid.join();
+            devices[id].guts.Input.thread = null;
+            const event = .{
+                .MIDI_Remove = .{ .id = devices[id].id, .dev_type = .Input },
+            };
+            events.post(event);
+            if (devices[id].ptr) |p| {
+                c.rtmidi_close_port(p);
+                c.rtmidi_in_free(p);
             }
-            node = n.next;
-        }
-        return false;
-    }
-    fn search(self: *List, id: u32) ?*Node {
-        var node = self.head;
-        while (node) |n| {
-            switch (n.dev.*) {
-                .Input => if (n.dev.Input.id == id) return n,
-                .Output => if (n.dev.Output.id == id) return n,
+            devices[id].ptr = null;
+        },
+        .Output => {
+            const event = .{
+                .MIDI_Remove = .{ .id = devices[id].id, .dev_type = .Output },
+            };
+            events.post(event);
+            if (devices[id].ptr) |p| {
+                c.rtmidi_close_port(p);
+                c.rtmidi_out_free(p);
             }
-            node = n.next;
-        }
-        return null;
+            devices[id].ptr = null;
+        },
     }
-    fn add(self: *List, dev: *Device) !void {
-        var new_node = try allocator.create(Node);
-        new_node.* = Node{ .next = null, .prev = null, .dev = dev };
-        if (self.tail) |n| {
-            n.next = new_node;
-            new_node.prev = n;
-        } else {
-            std.debug.assert(self.size == 0);
-            self.head = new_node;
-        }
-        self.tail = new_node;
-        self.size += 1;
-    }
-    fn remove(self: *List, id: u32) ?*Device {
-        const node = self.search(id);
-        if (node == null) return null;
-        const dev = node.?.dev;
-        const prev = node.?.prev;
-        const next = node.?.next;
-        if (self.head == node.?) self.head = next;
-        if (self.tail == node.?) self.tail = prev;
-        if (next) |n| n.prev = prev;
-        if (prev) |p| p.next = next;
-        self.size -= 1;
-        allocator.destroy(node.?);
-        return dev;
-    }
-};
+}
 
 pub fn init(alloc_pointer: std.mem.Allocator) !void {
     allocator = alloc_pointer;
-    midi_in = c.rtmidi_in_create( //
-        c.RTMIDI_API_UNSPECIFIED, //
-        RtMidiPrefix, 1024) orelse return error.Fail;
-    var in_name = try std.fmt.allocPrintZ(allocator, "{s}", .{"seamstress_in"});
-    var dev = try allocator.create(Device);
-    dev.* = Device{
-        .Input = Device.input_dev{
-            .id = id_counter,
-            .quit = false,
-            .ptr = midi_in,
-            .name = in_name,
-            // Device
-        },
-    };
-    id_counter += 1;
-    c.rtmidi_open_virtual_port(midi_in, "seamstress_in");
-    dev.Input.thread = try std.Thread.spawn(.{}, Device.input_dev.loop, .{&dev.Input});
-    try in_list.add(dev);
-
-    midi_out = c.rtmidi_out_create( //
-        c.RTMIDI_API_UNSPECIFIED, //
-        RtMidiPrefix) orelse return error.Fail;
-    var out_name = try std.fmt.allocPrintZ(allocator, "{s}", .{"seamstress_out"});
-    dev = try allocator.create(Device);
-    dev.* = Device{
-        .Output = Device.output_dev{
-            .id = id_counter,
-            .ptr = midi_out,
-            .name = out_name,
-            // Device
-        },
-    };
-    id_counter += 1;
-    c.rtmidi_open_virtual_port(midi_out, "seamstress_out");
-    try out_list.add(dev);
-
+    devices = try allocator.alloc(Device, 32);
+    var idx: usize = 0;
+    while (idx < 32) : (idx += 1) {
+        devices[idx] = .{ .id = @intCast(u8, idx) };
+    }
     thread = try std.Thread.spawn(.{}, main_loop, .{});
 }
 
 // NB: on Linux, RtMidi keeps on reanouncing registered devices w/ the added `RtMidiPrefix`
 // this function allows retecting if a device name has this prefix (and thus is already registered)
-fn is_device_name_rt_midi_prefixed(src: []const u8) bool {
+fn is_prefixed(src: []const u8) bool {
     const prefix = RtMidiPrefix ++ ":";
     if (src.len > prefix.len and std.mem.eql(u8, prefix, src[0..prefix.len])) {
         return true;
@@ -207,105 +122,166 @@ fn is_device_name_rt_midi_prefixed(src: []const u8) bool {
 }
 
 fn main_loop() !void {
+    midi_in = c.rtmidi_in_create(
+        c.RTMIDI_API_UNSPECIFIED,
+        RtMidiPrefix,
+        1024,
+    ) orelse return error.Fail;
+    var in_name: [:0]const u8 = try std.fmt.allocPrintZ(allocator, "{s}", .{"seamstress_in"});
+    c.rtmidi_open_virtual_port(midi_in, "seamstress_in");
+    devices[0].connected = true;
+    devices[0].ptr = midi_in;
+    devices[0].name = in_name;
+    devices[0].guts = .{ .Input = .{} };
+    devices[0].guts.Input.thread = try std.Thread.spawn(.{}, Device.Guts.input.loop, .{&devices[0]});
+    const event_once = .{
+        .MIDI_Add = .{ .dev = &devices[0] },
+    };
+    events.post(event_once);
+
+    midi_out = c.rtmidi_out_create(
+        c.RTMIDI_API_UNSPECIFIED,
+        RtMidiPrefix,
+    ) orelse return error.Fail;
+    var out_name: [:0]const u8 = try std.fmt.allocPrintZ(allocator, "{s}", .{"seamstress_out"});
+    c.rtmidi_open_virtual_port(midi_out, "seamstress_out");
+    devices[1].connected = true;
+    devices[1].ptr = midi_out;
+    devices[1].name = out_name;
+    devices[1].guts = .{ .Output = .{} };
+    const event_again = .{
+        .MIDI_Add = .{ .dev = &devices[1] },
+    };
+    events.post(event_again);
+
     while (!quit) {
+        var is_active: [32]bool = undefined;
+        var i: c_uint = 0;
+        while (i < 32) : (i += 1) is_active[i] = false;
+
         const in_count = c.rtmidi_get_port_count(midi_in);
-        if (in_count > in_list.size) {
-            var i: c_uint = 0;
-            while (i < in_count) : (i += 1) {
-                var len: c_int = 256;
-                _ = c.rtmidi_get_port_name(midi_in, i, null, &len);
-                var buf = try allocator.alloc(u8, @intCast(usize, len));
-                defer allocator.free(buf);
-                _ = c.rtmidi_get_port_name(midi_in, i, buf.ptr, &len);
-                if (!is_device_name_rt_midi_prefixed(buf) and !in_list.find(buf)) {
-                    std.debug.print("found new IN: {s} \n", .{buf});
-                    var dev = try create(Dev_t.Input, i, buf);
-                    try in_list.add(dev);
-                    var name_copy = try allocator.allocSentinel(u8, dev.Input.name.len, 0);
-                    std.mem.copyForwards(u8, name_copy, dev.Input.name);
-                    const event = .{
-                        .MIDI_Add = .{
-                            // add event
-                            .dev = dev,
-                            .dev_type = .Input,
-                            .id = dev.Input.id,
-                            .name = name_copy,
-                        },
-                    };
-                    events.post(event);
+        i = 0;
+        while (i < in_count) : (i += 1) {
+            var len: c_int = 256;
+            _ = c.rtmidi_get_port_name(midi_in, i, null, &len);
+            const usize_len = @intCast(usize, len);
+            var buf = try allocator.allocSentinel(u8, usize_len, 0);
+            defer allocator.free(buf);
+            _ = c.rtmidi_get_port_name(midi_in, i, buf.ptr, &len);
+            const spanned = std.mem.span(buf.ptr);
+            if (!is_prefixed(spanned)) {
+                if (find(.Input, spanned)) |id| {
+                    is_active[id] = true;
+                } else {
+                    if (try add(.Input, i, spanned)) |id| is_active[id] = true;
                 }
             }
         }
+
         const out_count = c.rtmidi_get_port_count(midi_out);
-        if (out_count > out_list.size) {
-            var i: c_uint = 0;
-            while (i < out_count) : (i += 1) {
-                var len: c_int = 256;
-                _ = c.rtmidi_get_port_name(midi_out, i, null, &len);
-                var buf = try allocator.alloc(u8, @intCast(usize, len));
-                defer allocator.free(buf);
-                _ = c.rtmidi_get_port_name(midi_out, i, buf.ptr, &len);
-                if (!is_device_name_rt_midi_prefixed(buf) and !out_list.find(buf)) {
-                    std.debug.print("found new OUT: {s}\n", .{buf});
-                    var dev = try create(Dev_t.Output, i, buf);
-                    try out_list.add(dev);
-                    var name_copy = try allocator.allocSentinel(u8, dev.Output.name.len, 0);
-                    std.mem.copyForwards(u8, name_copy, dev.Output.name);
-                    const event = .{
-                        .MIDI_Add = .{
-                            // add event
-                            .dev = dev,
-                            .dev_type = .Output,
-                            .id = dev.Output.id,
-                            .name = name_copy,
-                        },
-                    };
-                    events.post(event);
+        i = 0;
+        while (i < out_count) : (i += 1) {
+            var len: c_int = 256;
+            _ = c.rtmidi_get_port_name(midi_out, i, null, &len);
+            const usize_len = @intCast(usize, len);
+            var buf = try allocator.allocSentinel(u8, usize_len, 0);
+            defer allocator.free(buf);
+            _ = c.rtmidi_get_port_name(midi_out, i, buf.ptr, &len);
+            const spanned = std.mem.span(buf.ptr);
+            if (!is_prefixed(spanned)) {
+                if (find(.Output, spanned)) |id| {
+                    is_active[id] = true;
+                } else {
+                    if (try add(.Output, i, spanned)) |id| is_active[id] = true;
                 }
             }
+        }
+        i = 0;
+        while (i < 32) : (i += 1) {
+            if (devices[i].connected == is_active[i]) continue;
+            if (!devices[i].connected and is_active[i]) {
+                devices[i].connected = true;
+                const event = .{
+                    .MIDI_Add = .{ .dev = &devices[i] },
+                };
+                events.post(event);
+                switch (devices[i].guts) {
+                    .Output => {},
+                    .Input => |*g| g.thread = try std.Thread.spawn(.{}, Device.Guts.input.loop, .{&devices[i]}),
+                }
+            }
+            if (devices[i].connected and !is_active[i]) remove(i);
         }
         std.time.sleep(std.time.ns_per_s);
     }
 }
 
-fn create(dev_type: Dev_t, port_number: c_uint, name: []const u8) !*Device {
-    var ptr = switch (dev_type) {
-        Dev_t.Input => c.rtmidi_in_create( //
-            c.RTMIDI_API_UNSPECIFIED, //
-            RtMidiPrefix, 1024) orelse return error.Fail,
-        Dev_t.Output => c.rtmidi_out_create( //
-            c.RTMIDI_API_UNSPECIFIED, RtMidiPrefix) orelse return error.Fail,
+fn find(dev_type: Dev_t, name: [:0]const u8) ?usize {
+    // need a special case for ourselves.
+    if (dev_type == .Input and std.mem.eql(u8, name, "seamstress_out")) return 1;
+    if (dev_type == .Output and std.mem.eql(u8, name, "seamstress_in")) return 0;
+    var i: usize = 2;
+    while (i < 32) : (i += 1) {
+        switch (devices[i].guts) {
+            .Input => {
+                if (dev_type != .Input) continue;
+                const n = devices[i].name orelse continue;
+                if (std.mem.eql(u8, name, n)) return i;
+            },
+            .Output => {
+                if (dev_type != .Output) continue;
+                const n = devices[i].name orelse continue;
+                if (std.mem.eql(u8, name, n)) return i;
+            },
+        }
+    }
+    return null;
+}
+
+fn add(dev_type: Dev_t, port_number: c_uint, name: [:0]const u8) !?u8 {
+    var free: ?*Device = null;
+    var i: usize = 0;
+    while (i < 32) : (i += 1) {
+        const is_free = devices[i].connected == false and devices[i].name == null;
+        if (is_free) {
+            free = &devices[i];
+            break;
+        }
+    }
+    var device = free orelse {
+        @setCold(true);
+        std.debug.print("too many devices! not adding {s}\n", .{name});
+        return null;
     };
-    var c_name = try allocator.allocSentinel(u8, name.len, 0);
-    std.mem.copyForwards(u8, c_name, name);
-    c.rtmidi_open_port(ptr, port_number, c_name.ptr);
-    var dev = try allocator.create(Device);
     switch (dev_type) {
-        Dev_t.Input => {
-            dev.* = Device{
-                .Input = Device.input_dev{
-                    .id = id_counter,
-                    .quit = false,
-                    .ptr = ptr,
-                    .name = c_name,
-                },
-                // Device
-            };
-            id_counter += 1;
-            dev.Input.thread = try std.Thread.spawn(.{}, Device.input_dev.loop, .{&dev.Input});
-            return dev;
+        .Input => {
+            const ptr = c.rtmidi_in_create(
+                c.RTMIDI_API_UNSPECIFIED,
+                RtMidiPrefix,
+                1024,
+            ) orelse return error.Fail;
+            var c_name = try allocator.allocSentinel(u8, name.len, 0);
+            std.mem.copyForwards(u8, c_name, name);
+            c.rtmidi_open_port(ptr, port_number, c_name.ptr);
+            const id = device.id;
+            device.ptr = ptr;
+            device.name = c_name;
+            device.guts = .{ .Input = .{} };
+            return id;
         },
-        Dev_t.Output => {
-            dev.* = Device{
-                .Output = Device.output_dev{
-                    .id = id_counter,
-                    .name = c_name,
-                    .ptr = ptr,
-                },
-                // Device
-            };
-            id_counter += 1;
-            return dev;
+        .Output => {
+            const ptr = c.rtmidi_out_create(
+                c.RTMIDI_API_UNSPECIFIED,
+                RtMidiPrefix,
+            ) orelse return error.Fail;
+            var c_name = try allocator.allocSentinel(u8, name.len, 0);
+            std.mem.copyForwards(u8, c_name, name);
+            c.rtmidi_open_port(ptr, port_number, c_name.ptr);
+            const id = device.id;
+            device.ptr = ptr;
+            device.name = c_name;
+            device.guts = .{ .Output = .{} };
+            return id;
         },
     }
 }
@@ -313,14 +289,10 @@ fn create(dev_type: Dev_t, port_number: c_uint, name: []const u8) !*Device {
 pub fn deinit() void {
     quit = true;
     thread.join();
-    var node = in_list.head;
-    while (node) |n| {
-        node = n.next;
-        Device.deinit(Dev_t.Input, n.dev.Input.id);
+    var i: usize = 0;
+    while (i < 32) : (i += 1) {
+        remove(i);
+        if (devices[i].name) |n| allocator.free(n);
     }
-    node = out_list.head;
-    while (node) |n| {
-        node = n.next;
-        Device.deinit(Dev_t.Output, n.dev.Output.id);
-    }
+    allocator.free(devices);
 }
