@@ -73,16 +73,41 @@ function Screen.text(x, y, text)
 end
 
 _seamstress.screen = {
-  key = function (scancode)
+  key = function (symbol, modifiers, is_repeat, state)
     if Screen.key ~= nil then
-      Screen.key(scancode)
+      Screen.key(symbol, modifiers, is_repeat, state)
     end
-  end
+  end,
+  mouse = function(x, y)
+    if Screen.mouse ~= nil then
+      Screen.mouse(x, y)
+    end
+  end,
+  click = function(x, y, state, button)
+    if Screen.click ~= nil then
+      Screen.click(x, y, state, button)
+    end
+  end,
 }
 
 --- callback executed when the user types a key into the gui window.
--- @tparam integer scancode ascii scancode
+-- @tparam integer symbol the key's symbol
+-- @tparam integer modifiers a bitmask of the modifier key states
+-- @tparam bool is_repeat true if the key is a repeat event
+-- @tparam integer state 1 for a press, 0 for release
 -- @function screen.key
-function Screen.key(scancode) end
+function Screen.key(symbol, modifiers, is_repeat, state) end
+
+--- callback executed when the user moves the mouse with the gui window focused.
+-- @tparam integer x x-coordinate
+-- @tparam integer y y-coordinate
+function Screen.mouse(x, y) end
+
+--- callback executed when the user clicks the mouse on the gui window.
+-- @tparam integer x x-coordinate
+-- @tparam integer y y-coordinate
+-- @tparam integer state 1 for a press, 0 for release
+-- @tparam integer button bitmask for which button was pressed
+function Screen.click(x, y, state, button) end
 
 return Screen

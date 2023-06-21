@@ -117,12 +117,40 @@ pub fn check() void {
     var ev: c.SDL_Event = undefined;
     while (c.SDL_PollEvent(&ev) != 0) {
         switch (ev.type) {
-            c.SDL_KEYDOWN => {
-                events.post(.{ .Screen_Check = {} });
+            c.SDL_KEYUP, c.SDL_KEYDOWN => {
+                const event = .{
+                    .Screen_Key = .{
+                        .sym = ev.key.keysym.sym,
+                        .mod = ev.key.keysym.mod,
+                        .repeat = ev.key.repeat > 0,
+                        .state = ev.key.state == c.SDL_PRESSED,
+                    },
+                };
+                events.post(event);
             },
             c.SDL_QUIT => {
                 events.post(.{ .Quit = {} });
                 quit = true;
+            },
+            c.SDL_MOUSEMOTION => {
+                const event = .{
+                    .Screen_Mouse_Motion = .{
+                        .x = ev.motion.x,
+                        .y = ev.motion.y,
+                    },
+                };
+                events.post(event);
+            },
+            c.SDL_MOUSEBUTTONDOWN, c.SDL_MOUSEBUTTONUP => {
+                const event = .{
+                    .Screen_Mouse_Click = .{
+                        .state = ev.button.state == c.SDL_PRESSED,
+                        .x = ev.button.x,
+                        .y = ev.button.y,
+                        .button = ev.button.button,
+                    },
+                };
+                events.post(event);
             },
             c.SDL_WINDOWEVENT => {
                 switch (ev.window.event) {

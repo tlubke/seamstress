@@ -769,10 +769,29 @@ pub fn arc_key(id: usize, ring: i32, state: i32) !void {
     try docall(&lvm, 3, 0);
 }
 
-pub fn screen_key(scancode: i32) !void {
+pub fn screen_key(sym: i32, mod: u16, repeat: bool, state: bool) !void {
     try push_lua_func("screen", "key");
-    lvm.pushInteger(scancode);
-    try docall(&lvm, 1, 0);
+    lvm.pushInteger(sym);
+    lvm.pushInteger(mod);
+    lvm.pushBoolean(repeat);
+    lvm.pushInteger(if (state) 1 else 0);
+    try docall(&lvm, 4, 0);
+}
+
+pub fn screen_mouse(x: i32, y: i32) !void {
+    try push_lua_func("screen", "mouse");
+    lvm.pushInteger(x);
+    lvm.pushInteger(y);
+    try docall(&lvm, 2, 0);
+}
+
+pub fn screen_click(x: i32, y: i32, state: bool, button: u8) !void {
+    try push_lua_func("screen", "click");
+    lvm.pushInteger(x);
+    lvm.pushInteger(y);
+    lvm.pushInteger(if (state) 1 else 0);
+    lvm.pushInteger(button);
+    try docall(&lvm, 4, 0);
 }
 
 pub fn metro_event(id: u8, stage: i64) !void {

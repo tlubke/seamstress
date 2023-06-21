@@ -19,6 +19,8 @@ pub const Event = enum {
     Arc_Encoder,
     Arc_Key,
     Screen_Key,
+    Screen_Mouse_Motion,
+    Screen_Mouse_Click,
     Screen_Check,
     Metro,
     MIDI_Add,
@@ -40,6 +42,8 @@ pub const Data = union(Event) {
     Arc_Encoder: event_arc_delta,
     Arc_Key: event_arc_key,
     Screen_Key: event_screen_key,
+    Screen_Mouse_Motion: event_screen_mouse_motion,
+    Screen_Mouse_Click: event_screen_mouse_click,
     Screen_Check: void,
     Metro: event_metro,
     MIDI_Add: event_midi_add,
@@ -47,12 +51,10 @@ pub const Data = union(Event) {
     MIDI: event_midi,
     Clock_Resume: event_resume,
     Clock_Transport: event_transport,
-    // event data struct
 };
 
 const event_exec_code_line = struct {
     line: [:0]const u8 = undefined,
-    // exec_code
 };
 
 const event_osc = struct {
@@ -60,17 +62,14 @@ const event_osc = struct {
     from_port: [:0]const u8 = undefined,
     path: [:0]const u8 = undefined,
     msg: []osc.Lo_Arg = undefined,
-    // osc
 };
 
 const event_monome_add = struct {
     dev: *monome.Monome = undefined,
-    // device
 };
 
 const event_monome_remove = struct {
     id: usize = undefined,
-    // monome_remove
 };
 
 const event_grid_key = struct {
@@ -78,7 +77,6 @@ const event_grid_key = struct {
     x: i32 = undefined,
     y: i32 = undefined,
     state: i32 = undefined,
-    // grid_key
 };
 
 const event_grid_tilt = struct {
@@ -87,26 +85,37 @@ const event_grid_tilt = struct {
     x: i32 = undefined,
     y: i32 = undefined,
     z: i32 = undefined,
-    // grid_tilt
 };
 
 const event_arc_delta = struct {
     id: usize = undefined,
     ring: i32 = undefined,
     delta: i32 = undefined,
-    // arc_delta
 };
 
 const event_arc_key = struct {
     id: usize = undefined,
     ring: i32 = undefined,
     state: i32 = undefined,
-    // arc_key
 };
 
 const event_screen_key = struct {
-    scancode: i32 = undefined,
-    // screen_key
+    sym: i32 = undefined,
+    mod: u16 = undefined,
+    repeat: bool = undefined,
+    state: bool = undefined,
+};
+
+const event_screen_mouse_motion = struct {
+    x: i32 = undefined,
+    y: i32 = undefined,
+};
+
+const event_screen_mouse_click = struct {
+    x: i32 = undefined,
+    y: i32 = undefined,
+    state: bool = undefined,
+    button: u8 = undefined,
 };
 
 const event_screen_check = struct {};
@@ -114,7 +123,6 @@ const event_screen_check = struct {};
 const event_metro = struct {
     id: u8 = undefined,
     stage: i64 = undefined,
-    // metro
 };
 
 const event_midi_add = struct {
@@ -124,24 +132,20 @@ const event_midi_add = struct {
 const event_midi_remove = struct {
     id: u32 = undefined,
     dev_type: midi.Dev_t = undefined,
-    // midi_remove
 };
 
 const event_midi = struct {
     id: u32 = undefined,
     timestamp: f64 = undefined,
     message: []const u8 = undefined,
-    // midi
 };
 
 const event_resume = struct {
     id: u8 = undefined,
-    // resume
 };
 
 const event_transport = struct {
     transport: clock.Transport = undefined,
-    // transport event
 };
 
 var allocator: std.mem.Allocator = undefined;
@@ -338,7 +342,9 @@ fn handle(event: *Data) !void {
         .Grid_Tilt => |e| try spindle.grid_tilt(e.id, e.sensor, e.x, e.y, e.z),
         .Arc_Encoder => |e| try spindle.arc_delta(e.id, e.ring, e.delta),
         .Arc_Key => |e| try spindle.arc_key(e.id, e.ring, e.state),
-        .Screen_Key => |e| try spindle.screen_key(e.scancode),
+        .Screen_Key => |e| try spindle.screen_key(e.sym, e.mod, e.repeat, e.state),
+        .Screen_Mouse_Motion => |e| try spindle.screen_mouse(e.x, e.y),
+        .Screen_Mouse_Click => |e| try spindle.screen_click(e.x, e.y, e.state, e.button),
         .Screen_Check => screen.check(),
         .Metro => |e| try spindle.metro_event(e.id, e.stage),
         .MIDI_Add => |e| try spindle.midi_add(e.dev),
