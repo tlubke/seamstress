@@ -8,7 +8,7 @@ currently beta software.
 
 requires `liblo`, `sdl2`, `sdl2_ttf`, `rtmidi`, and `lua`. on macOS do
 
-```
+```bash
 brew install lua liblo rtmidi sdl2 sdl2_ttf
 ```
 
@@ -17,11 +17,9 @@ download a binary from [here](https://ziglang.org/download/) and add it to your 
 (`brew install zig --HEAD` appears to work, but it will be faster to download a binary.)
 to build, invoke
 
-```
+```bash
 git submodule update --init --recursive
-./waf configure
-./waf
-sudo ./waf install
+sudo zig build install -p /usr/local -Doptimize=ReleaseFast
 ```
 
 ## usage
