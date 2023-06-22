@@ -22,7 +22,7 @@ function clock.run(f, ...)
   local id = new_id()
   _seamstress.clock.threads[id] = co
   _seamstress.clock_resume(id, co, ...)
-  return co
+  return id
 end
 
 --- stop a coroutine started by clock.run.
