@@ -316,7 +316,7 @@ pub fn deinit() void {
 fn loop() void {
     while (!quit) {
         events.post(.{ .Screen_Check = {} });
-        std.time.sleep(2000000);
+        std.time.sleep(10 * std.time.ns_per_ms);
     }
 }
 

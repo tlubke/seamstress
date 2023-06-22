@@ -3,6 +3,8 @@
 local Screen = {}
 Screen.__index = Screen
 
+local keycodes = require("keycodes")
+
 --- clears the screen.
 -- @function screen.clear
 function Screen.clear()
@@ -113,8 +115,14 @@ end
 
 _seamstress.screen = {
   key = function (symbol, modifiers, is_repeat, state, window)
-    if Screen.key ~= nil then
-      Screen.key(symbol, modifiers, is_repeat, state, window)
+    local char = keycodes[symbol]
+    local mods = keycodes.modifier(modifiers)
+    if #mods == 1 and mods[1] == "ctrl" and char == "p" and state == 1 and window == 1 then
+      _seamstress.screen_show()
+    elseif #mods == 1 and mods[1] == "ctrl" and char == "c" and state == 1 then
+      _seamstress.quit_lvm()
+    elseif Screen.key ~= nil then
+      Screen.key(keycodes[symbol], keycodes.modifier(modifiers), is_repeat, state, window)
     end
   end,
   mouse = function(x, y, window)
@@ -135,13 +143,13 @@ _seamstress.screen = {
 }
 
 --- callback executed when the user types a key into the gui window.
--- @tparam integer symbol the key's symbol
--- @tparam integer modifiers a bitmask of the modifier key states
+-- @tparam string|table char either the character or a table of the form {name = "name"}
+-- @tparam table modifiers a table with the names of modifier keys pressed down
 -- @tparam bool is_repeat true if the key is a repeat event
 -- @tparam integer state 1 for a press, 0 for release
 -- @tparam integer window 1 for the main window, 2 for the params window
 -- @function screen.key
-function Screen.key(symbol, modifiers, is_repeat, state, window) end
+function Screen.key(char, modifiers, is_repeat, state, window) end
 
 --- callback executed when the user moves the mouse with the gui window focused.
 -- @tparam integer x x-coordinate

@@ -4,6 +4,7 @@
 const std = @import("std");
 const args = @import("args.zig");
 const osc = @import("serialosc.zig");
+const events = @import("events.zig");
 const monome = @import("monome.zig");
 const midi = @import("midi.zig");
 const clock = @import("clock.zig");
@@ -69,6 +70,7 @@ pub fn init(config: []const u8, alloc_pointer: std.mem.Allocator) !void {
     register_seamstress("clock_cancel", ziglua.wrap(clock_cancel));
 
     register_seamstress("reset_lvm", ziglua.wrap(reset_lvm));
+    register_seamstress("quit_lvm", ziglua.wrap(quit_lvm));
 
     _ = lvm.pushString(args.local_port);
     lvm.setField(-2, "local_port");
@@ -668,6 +670,20 @@ fn clock_resume(l: *Lua) i32 {
 // @function reset_lvm
 fn reset_lvm(l: *Lua) i32 {
     check_num_args(l, 0);
+    events.post(.{
+        .Reset_LVM = {},
+    });
+    l.setTop(0);
+    return 0;
+}
+
+/// quits seamstress
+// @function quit_lvm
+fn quit_lvm(l: *Lua) i32 {
+    check_num_args(l, 0);
+    events.post(.{
+        .Quit = {},
+    });
     l.setTop(0);
     return 0;
 }
