@@ -94,6 +94,23 @@ function Screen.text(x, y, text)
 	_seamstress.screen_text(x, y, text)
 end
 
+--- gets size of text.
+-- @tparam string text text to size
+-- @treturn integer w width in pixels
+-- @treturn integer h height in pixels
+-- @function screen.get_text_size
+function Screen.get_text_size(text)
+  return _seamstress.screen_get_text_size(text)
+end
+
+--- returns the size of the current window.
+-- @function Screen.
+-- @treturn integer w width in pixels
+-- @treturn integer h height in pixels
+function Screen.get_size()
+  return _seamstress.screen_get_size()
+end
+
 _seamstress.screen = {
   key = function (symbol, modifiers, is_repeat, state, window)
     if Screen.key ~= nil then
@@ -108,6 +125,11 @@ _seamstress.screen = {
   click = function(x, y, state, button, window)
     if Screen.click ~= nil then
       Screen.click(x, y, state, button, window)
+    end
+  end,
+  resized = function(x, y, window)
+    if Screen.resized ~= nil then
+      Screen.resized(x, y, window)
     end
   end,
 }
@@ -136,5 +158,12 @@ function Screen.mouse(x, y, window) end
 -- @tparam integer window 1 for the main window, 2 for the params window
 -- @function screen.click
 function Screen.click(x, y, state, button, window) end
+
+--- callback executed when the user resizes a window
+-- @tparam integer x new x size
+-- @tparam integer y new y size
+-- @tparam integer window 1 for the main window, 2 for the params window
+-- @function screen.resized
+function Screen.resized(x, y, window) end
 
 return Screen

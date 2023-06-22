@@ -9,6 +9,8 @@ var ZOOM: u16 = 4;
 const Gui = struct {
     window: *c.SDL_Window = undefined,
     render: *c.SDL_Renderer = undefined,
+    width: u16 = 256,
+    height: u16 = 128,
     zoom: u16 = 4,
 };
 
@@ -18,6 +20,10 @@ var current: usize = 0;
 var font: *c.TTF_Font = undefined;
 var thread: std.Thread = undefined;
 var quit = false;
+
+pub fn show(target: usize) void {
+    c.SDL_ShowWindow(windows[target].window);
+}
 
 pub fn set(new: usize) void {
     current = new;
@@ -91,6 +97,25 @@ pub fn text(x: i32, y: i32, words: [:0]const u8) void {
     );
     c.SDL_DestroyTexture(texture);
     c.SDL_FreeSurface(text_surf);
+}
+
+const Size = struct {
+    w: i32,
+    h: i32,
+};
+
+pub fn get_text_size(str: [*:0]const u8) Size {
+    var w: i32 = undefined;
+    var h: i32 = undefined;
+    sdl_call(c.TTF_SizeText(font, str, &w, &h), "screen.get_text_size()");
+    return .{ .w = w, .h = h };
+}
+
+pub fn get_size() Size {
+    return .{
+        .w = windows[current].width,
+        .h = windows[current].height,
+    };
 }
 
 pub fn init(width: u16, height: u16) !void {
@@ -182,6 +207,8 @@ fn window_rect(gui: *Gui) void {
     while ((1 + xzoom) * WIDTH <= xsize) : (xzoom += 1) {}
     while ((1 + yzoom) * HEIGHT <= ysize) : (yzoom += 1) {}
     gui.zoom = if (xzoom < yzoom) xzoom else yzoom;
+    gui.width = @divFloor(@intCast(u16, xsize), gui.zoom);
+    gui.height = @divFloor(@intCast(u16, ysize), gui.zoom);
     sdl_call(c.SDL_RenderSetScale(
         gui.render,
         @intToFloat(f32, gui.zoom),
@@ -243,13 +270,27 @@ pub fn check() void {
                             c.SDL_HideWindow(windows[ev.window.windowID - 1].window);
                         }
                     },
-                    c.SDL_WINDOWEVENT_EXPOSED => refresh(),
-                    c.SDL_WINDOWEVENT_RESIZED => {
+                    c.SDL_WINDOWEVENT_EXPOSED => {
                         const old = current;
                         set(ev.window.windowID - 1);
+                        refresh();
+                        set(old);
+                    },
+                    c.SDL_WINDOWEVENT_RESIZED => {
+                        const old = current;
+                        const id = ev.window.windowID - 1;
+                        set(id);
                         window_rect(&windows[current]);
                         refresh();
                         set(old);
+                        const event = .{
+                            .Screen_Resized = .{
+                                .w = windows[id].width,
+                                .h = windows[id].height,
+                                .window = id + 1,
+                            },
+                        };
+                        events.post(event);
                     },
                     else => {},
                 }

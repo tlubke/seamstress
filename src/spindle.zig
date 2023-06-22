@@ -53,6 +53,9 @@ pub fn init(config: []const u8, alloc_pointer: std.mem.Allocator) !void {
     register_seamstress("screen_color", ziglua.wrap(screen_color));
     register_seamstress("screen_clear", ziglua.wrap(screen_clear));
     register_seamstress("screen_set", ziglua.wrap(screen_set));
+    register_seamstress("screen_show", ziglua.wrap(screen_show));
+    register_seamstress("screen_get_size", ziglua.wrap(screen_get_size));
+    register_seamstress("screen_get_text_size", ziglua.wrap(screen_get_text_size));
 
     register_seamstress("metro_start", ziglua.wrap(metro_start));
     register_seamstress("metro_stop", ziglua.wrap(metro_stop));
@@ -504,6 +507,37 @@ fn screen_set(l: *Lua) i32 {
     return 0;
 }
 
+/// unhides the params window
+// @function screen_show
+fn screen_show(l: *Lua) i32 {
+    check_num_args(l, 0);
+    screen.show(1);
+    return 0;
+}
+
+/// returns the size of the current window
+// @function screen_get_size
+fn screen_get_size(l: *Lua) i32 {
+    check_num_args(l, 0);
+    const ret = screen.get_size();
+    l.pushInteger(ret.w);
+    l.pushInteger(ret.h);
+    return 2;
+}
+
+/// returns the size in pixels of the given text.
+// users should use `screen.get_text_size` instead
+// @see screen.get_text_size
+// @function screen_get_text_size
+fn screen_get_text_size(l: *Lua) i32 {
+    check_num_args(l, 1);
+    const str = l.checkString(1);
+    const ret = screen.get_text_size(str);
+    l.pushInteger(ret.w);
+    l.pushInteger(ret.h);
+    return 2;
+}
+
 /// starts a new metro.
 // users should use `metro:start` instead
 // @param idx metro id (1-36)
@@ -808,6 +842,14 @@ pub fn screen_click(x: f64, y: f64, state: bool, button: u8, window: usize) !voi
     lvm.pushInteger(button);
     lvm.pushInteger(@intCast(c_longlong, window));
     try docall(&lvm, 5, 0);
+}
+
+pub fn screen_resized(w: i32, h: i32, window: usize) !void {
+    try push_lua_func("screen", "resized");
+    lvm.pushInteger(w);
+    lvm.pushInteger(h);
+    lvm.pushInteger(@intCast(c_longlong, window));
+    try docall(&lvm, 3, 0);
 }
 
 pub fn metro_event(id: u8, stage: i64) !void {
