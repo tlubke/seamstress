@@ -21,6 +21,11 @@ def configure(ctx):
         ctx.fatal('Could not find Lua')
 
     if ctx.env.DEST_OS == 'darwin':
+        ctx.env.INCLUDES_NCURSES = ['/opt/homebrew/include']
+        ctx.env.LIB_NCURSES = 'ncurses'
+        ctx.env.LIBPATH_NCURSES = '/opt/homebrew/lib'
+        ctx.env.LDFLAGS_NCURSES = '-lcurses'
+
         ctx.env.INCLUDES_RTMIDI = ['/opt/homebrew/include']
         ctx.env.LIB_RTMIDI = 'rtmidi'
         ctx.env.LIBPATH_RTMIDI = '/opt/homebrew/lib'
@@ -96,6 +101,13 @@ def configure(ctx):
         lib = "rtmidi",
         use = "RTMIDI",
         msg = "Checking for rtmidi"
+    )
+    ctx.check_cc(
+        mandatory = True,
+        quote = 0,
+        lib = "ncurses",
+        use = "NCURSES",
+        msg = "Checking for ncurses"
     )
     return
 

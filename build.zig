@@ -44,6 +44,7 @@ pub fn build(b: *std.Build) void {
     exe.linkSystemLibrary("SDL2");
     exe.linkSystemLibrary("SDL2_ttf");
     exe.linkSystemLibrary("rtmidi");
+    exe.linkSystemLibrary("ncurses");
     exe.addModule("ziglua", ziglua.compileAndCreateModule(b, exe, .{}));
     // This *creates* a Run step in the build graph, to be executed when another
     // step is evaluated that depends on it. The next line below will establish

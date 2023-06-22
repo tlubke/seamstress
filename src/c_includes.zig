@@ -11,6 +11,7 @@ pub const imported = @cImport({
     @cInclude("SDL2/SDL_surface.h");
     @cInclude("SDL2/SDL_video.h");
     @cInclude("rtmidi/rtmidi_c.h");
+    @cInclude("curses.h");
 });
 
 pub const os_imported = switch (builtin.target.os.tag) {
