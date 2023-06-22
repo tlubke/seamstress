@@ -9,10 +9,32 @@ function Screen.clear()
 	_seamstress.screen_clear()
 end
 
+local current = 1
+
+--- sets the screen which will be affected by following screen calls.
+-- call `screen.reset` to return to the previous state.
+-- @tparam integer value 1 (gui) or 2 (params)
+-- @function screen.set
+function Screen.set(value)
+  local old = current
+  local old_reset = Screen.reset
+  _seamstress.screen_set(value)
+  current = value
+  Screen.reset = function()
+    _seamstress.screen_set(old)
+    Screen.reset = old_reset
+    current = old
+  end
+end
+
+--- resets which screen will be affected by future screen calls.
+-- @function screen.reset
+function Screen.reset() end
+
 --- redraws the screen; reveals changes.
--- @function screen.redraw
-function Screen.redraw()
-	_seamstress.screen_redraw()
+-- @function screen.refresh
+function Screen.refresh()
+	_seamstress.screen_refresh()
 end
 
 --- sets screen color.
@@ -73,19 +95,19 @@ function Screen.text(x, y, text)
 end
 
 _seamstress.screen = {
-  key = function (symbol, modifiers, is_repeat, state)
+  key = function (symbol, modifiers, is_repeat, state, window)
     if Screen.key ~= nil then
-      Screen.key(symbol, modifiers, is_repeat, state)
+      Screen.key(symbol, modifiers, is_repeat, state, window)
     end
   end,
-  mouse = function(x, y)
+  mouse = function(x, y, window)
     if Screen.mouse ~= nil then
-      Screen.mouse(x, y)
+      Screen.mouse(x, y, window)
     end
   end,
-  click = function(x, y, state, button)
+  click = function(x, y, state, button, window)
     if Screen.click ~= nil then
-      Screen.click(x, y, state, button)
+      Screen.click(x, y, state, button, window)
     end
   end,
 }
@@ -95,19 +117,24 @@ _seamstress.screen = {
 -- @tparam integer modifiers a bitmask of the modifier key states
 -- @tparam bool is_repeat true if the key is a repeat event
 -- @tparam integer state 1 for a press, 0 for release
+-- @tparam integer window 1 for the main window, 2 for the params window
 -- @function screen.key
-function Screen.key(symbol, modifiers, is_repeat, state) end
+function Screen.key(symbol, modifiers, is_repeat, state, window) end
 
 --- callback executed when the user moves the mouse with the gui window focused.
 -- @tparam integer x x-coordinate
 -- @tparam integer y y-coordinate
-function Screen.mouse(x, y) end
+-- @tparam integer window 1 for the main window, 2 for the params window
+-- @function screen.mouse
+function Screen.mouse(x, y, window) end
 
 --- callback executed when the user clicks the mouse on the gui window.
 -- @tparam integer x x-coordinate
 -- @tparam integer y y-coordinate
 -- @tparam integer state 1 for a press, 0 for release
 -- @tparam integer button bitmask for which button was pressed
-function Screen.click(x, y, state, button) end
+-- @tparam integer window 1 for the main window, 2 for the params window
+-- @function screen.click
+function Screen.click(x, y, state, button, window) end
 
 return Screen

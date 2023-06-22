@@ -44,7 +44,7 @@ pub fn init(config: []const u8, alloc_pointer: std.mem.Allocator) !void {
     register_seamstress("monome_refresh", ziglua.wrap(monome_refresh));
     register_seamstress("monome_intensity", ziglua.wrap(monome_intensity));
 
-    register_seamstress("screen_redraw", ziglua.wrap(screen_redraw));
+    register_seamstress("screen_refresh", ziglua.wrap(screen_refresh));
     register_seamstress("screen_pixel", ziglua.wrap(screen_pixel));
     register_seamstress("screen_line", ziglua.wrap(screen_line));
     register_seamstress("screen_rect", ziglua.wrap(screen_rect));
@@ -52,6 +52,7 @@ pub fn init(config: []const u8, alloc_pointer: std.mem.Allocator) !void {
     register_seamstress("screen_text", ziglua.wrap(screen_text));
     register_seamstress("screen_color", ziglua.wrap(screen_color));
     register_seamstress("screen_clear", ziglua.wrap(screen_clear));
+    register_seamstress("screen_set", ziglua.wrap(screen_set));
 
     register_seamstress("metro_start", ziglua.wrap(metro_start));
     register_seamstress("metro_stop", ziglua.wrap(metro_stop));
@@ -365,11 +366,11 @@ fn monome_intensity(l: *Lua) i32 {
 
 /// refreshes the screen.
 // users should use `screen.redraw` instead
-// @see screen:redraw
-// @function screen_redraw
-fn screen_redraw(l: *Lua) i32 {
+// @see screen.refresh
+// @function screen_refresh
+fn screen_refresh(l: *Lua) i32 {
     check_num_args(l, 0);
-    screen.redraw();
+    screen.refresh();
     return 0;
 }
 
@@ -483,11 +484,23 @@ fn screen_color(l: *Lua) i32 {
 
 /// clears the screen.
 // users should use `screen.clear` instead
-// @see screen:clear
+// @see screen.clear
 // @function screen_clear
 fn screen_clear(l: *Lua) i32 {
     check_num_args(l, 0);
     screen.clear();
+    return 0;
+}
+
+/// sets which screen to draw to.
+// users should use `screen.set` instead
+// @see screen.set
+// @function screen_set
+fn screen_set(l: *Lua) i32 {
+    check_num_args(l, 1);
+    const value = @intCast(usize, l.checkInteger(1)) - 1;
+    if (value > 1 or value < 0) return 0;
+    screen.set(value);
     return 0;
 }
 
@@ -769,29 +782,32 @@ pub fn arc_key(id: usize, ring: i32, state: i32) !void {
     try docall(&lvm, 3, 0);
 }
 
-pub fn screen_key(sym: i32, mod: u16, repeat: bool, state: bool) !void {
+pub fn screen_key(sym: i32, mod: u16, repeat: bool, state: bool, window: usize) !void {
     try push_lua_func("screen", "key");
     lvm.pushInteger(sym);
     lvm.pushInteger(mod);
     lvm.pushBoolean(repeat);
     lvm.pushInteger(if (state) 1 else 0);
-    try docall(&lvm, 4, 0);
+    lvm.pushInteger(@intCast(c_longlong, window));
+    try docall(&lvm, 5, 0);
 }
 
-pub fn screen_mouse(x: i32, y: i32) !void {
+pub fn screen_mouse(x: f64, y: f64, window: usize) !void {
     try push_lua_func("screen", "mouse");
-    lvm.pushInteger(x);
-    lvm.pushInteger(y);
-    try docall(&lvm, 2, 0);
+    lvm.pushNumber(x + 1);
+    lvm.pushNumber(y + 1);
+    lvm.pushInteger(@intCast(c_longlong, window));
+    try docall(&lvm, 3, 0);
 }
 
-pub fn screen_click(x: i32, y: i32, state: bool, button: u8) !void {
+pub fn screen_click(x: f64, y: f64, state: bool, button: u8, window: usize) !void {
     try push_lua_func("screen", "click");
-    lvm.pushInteger(x);
-    lvm.pushInteger(y);
+    lvm.pushNumber(x + 1);
+    lvm.pushNumber(y + 1);
     lvm.pushInteger(if (state) 1 else 0);
     lvm.pushInteger(button);
-    try docall(&lvm, 4, 0);
+    lvm.pushInteger(@intCast(c_longlong, window));
+    try docall(&lvm, 5, 0);
 }
 
 pub fn metro_event(id: u8, stage: i64) !void {

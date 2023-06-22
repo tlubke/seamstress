@@ -104,18 +104,21 @@ const event_screen_key = struct {
     mod: u16 = undefined,
     repeat: bool = undefined,
     state: bool = undefined,
+    window: usize = undefined,
 };
 
 const event_screen_mouse_motion = struct {
-    x: i32 = undefined,
-    y: i32 = undefined,
+    x: f64 = undefined,
+    y: f64 = undefined,
+    window: usize = undefined,
 };
 
 const event_screen_mouse_click = struct {
-    x: i32 = undefined,
-    y: i32 = undefined,
+    x: f64 = undefined,
+    y: f64 = undefined,
     state: bool = undefined,
     button: u8 = undefined,
+    window: usize = undefined,
 };
 
 const event_screen_check = struct {};
@@ -342,9 +345,9 @@ fn handle(event: *Data) !void {
         .Grid_Tilt => |e| try spindle.grid_tilt(e.id, e.sensor, e.x, e.y, e.z),
         .Arc_Encoder => |e| try spindle.arc_delta(e.id, e.ring, e.delta),
         .Arc_Key => |e| try spindle.arc_key(e.id, e.ring, e.state),
-        .Screen_Key => |e| try spindle.screen_key(e.sym, e.mod, e.repeat, e.state),
-        .Screen_Mouse_Motion => |e| try spindle.screen_mouse(e.x, e.y),
-        .Screen_Mouse_Click => |e| try spindle.screen_click(e.x, e.y, e.state, e.button),
+        .Screen_Key => |e| try spindle.screen_key(e.sym, e.mod, e.repeat, e.state, e.window),
+        .Screen_Mouse_Motion => |e| try spindle.screen_mouse(e.x, e.y, e.window),
+        .Screen_Mouse_Click => |e| try spindle.screen_click(e.x, e.y, e.state, e.button, e.window),
         .Screen_Check => screen.check(),
         .Metro => |e| try spindle.metro_event(e.id, e.stage),
         .MIDI_Add => |e| try spindle.midi_add(e.dev),
